@@ -69,13 +69,27 @@ export function validateProductionEndpoints(
   return { apiUrl: cleanApi, wsUrl: cleanWs };
 }
 
+function getRawApiUrl(): string {
+  if (typeof window !== 'undefined' && (window as any).__CARGOFLOW_CONFIG__?.apiUrl) {
+    return (window as any).__CARGOFLOW_CONFIG__.apiUrl;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || '';
+}
+
+function getRawWsUrl(): string {
+  if (typeof window !== 'undefined' && (window as any).__CARGOFLOW_CONFIG__?.wsUrl) {
+    return (window as any).__CARGOFLOW_CONFIG__.wsUrl;
+  }
+  return process.env.NEXT_PUBLIC_WS_URL || '';
+}
+
 function resolveApiUrl(): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocal = isBrowserLocalhost();
-  const rawUrl = process.env.NEXT_PUBLIC_API_URL;
+  const rawUrl = getRawApiUrl();
 
   if (isProduction && !isLocal) {
-    const validated = validateProductionEndpoints(rawUrl, process.env.NEXT_PUBLIC_WS_URL);
+    const validated = validateProductionEndpoints(rawUrl, getRawWsUrl());
     return validated.apiUrl;
   }
 
@@ -85,10 +99,10 @@ function resolveApiUrl(): string {
 function resolveWsUrl(): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocal = isBrowserLocalhost();
-  const rawUrl = process.env.NEXT_PUBLIC_WS_URL;
+  const rawUrl = getRawWsUrl();
 
   if (isProduction && !isLocal) {
-    const validated = validateProductionEndpoints(process.env.NEXT_PUBLIC_API_URL, rawUrl);
+    const validated = validateProductionEndpoints(getRawApiUrl(), rawUrl);
     return validated.wsUrl;
   }
 

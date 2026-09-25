@@ -191,3 +191,4 @@ if (criticalViolations > 0) {
   console.log('\n✅ AUDIT PASSED: Repository is free of placeholder domains and production leaks.\n');
   process.exit(0);
 }
+

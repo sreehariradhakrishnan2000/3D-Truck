@@ -28,6 +28,7 @@
     "build:web:worker": "npm run build:worker --workspace=apps/web",
     "deploy:worker": "npm run deploy:worker --workspace=apps/web",
     "tunnel:api": "node scripts/tunnel-api.mjs",
+    "deploy:tunnel": "node scripts/deploy-tunnel.mjs",
     "audit:production-config": "node scripts/audit-production-config.mjs",
     "diagnose:deployment": "node scripts/diagnose-deployment.mjs"
   },
