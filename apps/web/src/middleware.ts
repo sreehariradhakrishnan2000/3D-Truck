@@ -15,19 +15,23 @@ import type { NextRequest } from 'next/server';
  */
 
 function getBackendOrigin(): string {
-  const origin =
-    process.env.BACKEND_API_ORIGIN ||
-    process.env.INTERNAL_API_ORIGIN ||
-    process.env.API_URL ||
-    '';
+  // 1. Cloudflare runtime context ALS
+  try {
+    const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+    if (cfContext?.env?.BACKEND_API_ORIGIN) {
+      return String(cfContext.env.BACKEND_API_ORIGIN).trim().replace(/\/+$/, '');
+    }
+  } catch {}
 
-  if (origin && origin.trim()) {
-    return origin.trim().replace(/\/+$/, '');
+  // 2. Dynamic runtime process.env access (avoids build-time inlining)
+  const envKey = 'BACKEND_API_ORIGIN';
+  const dynamicOrigin = (process.env as any)[envKey] || (process.env as any)['INTERNAL_API_ORIGIN'] || (process.env as any)['API_URL'];
+  if (dynamicOrigin && String(dynamicOrigin).trim()) {
+    return String(dynamicOrigin).trim().replace(/\/+$/, '');
   }
 
-  // Local development fallback
-  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3001';
-  return '';
+  // 3. Fallback to active Quick Tunnel
+  return 'https://brilliant-point-forecast-singer.trycloudflare.com';
 }
 
 export async function middleware(request: NextRequest) {
