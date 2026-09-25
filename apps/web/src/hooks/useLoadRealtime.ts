@@ -7,8 +7,7 @@ import { WS_EVENTS } from '@cargoflow/shared-types';
 import { usePlannerStore } from '@/store/plannerStore';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
+import { envConfig } from '@/lib/config';
 
 export function useLoadRealtime(loadId: string | null) {
   const socketRef = useRef<Socket | null>(null);
@@ -28,7 +27,7 @@ export function useLoadRealtime(loadId: string | null) {
     if (!loadId || !user) return;
 
     const token = api.getToken();
-    const socket = io(`${WS_URL}/ws`, {
+    const socket = io(`${envConfig.wsUrl}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { envConfig } from './config';
 
 class ApiClient {
   private token: string | null = null;
@@ -22,7 +22,8 @@ class ApiClient {
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const apiBase = envConfig.apiUrl;
+    const url = `${apiBase}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const token = this.getToken();
 
     const headers: Record<string, string> = {
@@ -43,7 +44,7 @@ class ApiClient {
     if (res.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
       // Token may be expired, attempt refresh
       try {
-        const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+        const refreshRes = await fetch(`${apiBase}/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
         });

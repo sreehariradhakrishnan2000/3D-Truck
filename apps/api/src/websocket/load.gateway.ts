@@ -22,19 +22,31 @@ interface AuthenticatedSocket extends Socket {
   cors: {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return callback(null, true);
-      const allowedOrigins = (process.env.CORS_ORIGIN || process.env.WEB_URL || 'http://localhost:3000')
+      const isProduction = process.env.NODE_ENV === 'production';
+      const allowedOrigins = (process.env.CORS_ORIGIN || process.env.WEB_URL || (isProduction ? 'https://cargoflow.com' : 'http://localhost:3000'))
         .split(',')
-        .map((o) => o.trim());
-      if (
-        allowedOrigins.includes(origin) ||
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      const isAllowed =
+        allowedOrigins.some((allowed) => {
+          if (!isProduction && allowed === '*') return true;
+          return origin === allowed || origin.startsWith(allowed);
+        }) ||
         origin.endsWith('.pages.dev') ||
         origin.endsWith('.workers.dev') ||
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1')
-      ) {
+        origin.endsWith('.cargoflow.com');
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(null, true);
+
+      // In development mode only, permit localhost and 127.0.0.1
+      if (!isProduction && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`WebSocket origin ${origin} not allowed by CORS`), false);
     },
     credentials: true,
   },

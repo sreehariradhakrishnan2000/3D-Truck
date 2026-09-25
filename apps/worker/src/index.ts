@@ -10,7 +10,18 @@ const prisma = new PrismaClient({
   log: ['error', 'warn'],
 });
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const isProduction = process.env.NODE_ENV === 'production';
+const redisUrl = process.env.REDIS_URL || (isProduction ? '' : 'redis://localhost:6379');
+
+if (!redisUrl) {
+  throw new Error('CRITICAL PRODUCTION CONFIGURATION ERROR: REDIS_URL environment variable is required in production.');
+}
+if (isProduction && (redisUrl.includes('localhost') || redisUrl.includes('127.0.0.1'))) {
+  throw new Error(
+    `CRITICAL SECURITY ERROR: REDIS_URL cannot point to localhost in production. Found: ${redisUrl}. Use remote Redis (rediss://) or Docker internal service (redis://redis:6379).`
+  );
+}
+
 const isTls = redisUrl.startsWith('rediss://');
 
 console.log('🚛 [CargoFlow Worker] Starting BullMQ 3D Auto-Pack service...');
