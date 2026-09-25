@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -11,6 +11,8 @@ import type { VehicleDto, LoadPackageDto } from '@cargoflow/shared-types';
 interface TrailerSceneProps {
   vehicle: VehicleDto;
   loadPackages: LoadPackageDto[];
+  sequenceItems?: any[];
+  visibleStep?: number | null;
 }
 
 function TrailerBounds({ vehicle }: { vehicle: VehicleDto }) {
@@ -81,7 +83,7 @@ function CenterOfGravityMarker() {
   );
 }
 
-export function TrailerScene({ vehicle, loadPackages }: TrailerSceneProps) {
+export function TrailerScene({ vehicle, loadPackages, sequenceItems, visibleStep }: TrailerSceneProps) {
   const { cameraPreset, placements, setSelectedLoadPackageId } = usePlannerStore();
   const controlsRef = useRef<any>(null);
 
@@ -126,8 +128,18 @@ export function TrailerScene({ vehicle, loadPackages }: TrailerSceneProps) {
       }
     });
 
+    if (visibleStep !== undefined && visibleStep !== null && sequenceItems && sequenceItems.length > 0) {
+      // Find package IDs allowed up to visibleStep
+      const allowedPackageIds = new Set(
+        sequenceItems
+          .filter((s) => s.sequenceOrder <= visibleStep)
+          .map((s) => s.loadPackageId)
+      );
+      return list.filter((item) => allowedPackageIds.has(item.pkg.id));
+    }
+
     return list;
-  }, [loadPackages, placements]);
+  }, [loadPackages, placements, visibleStep, sequenceItems]);
 
   return (
     <div

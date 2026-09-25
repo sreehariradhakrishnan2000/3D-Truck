@@ -11,7 +11,7 @@ import { TwoDPlannerFallback } from '@/components/planner/TwoDPlannerFallback';
 import { PlannerControls } from '@/components/planner/PlannerControls';
 import { CargoTray } from '@/components/planner/CargoTray';
 import { ValidationPanel } from '@/components/planner/ValidationPanel';
-import { runPackingEngine } from '@cargoflow/packing-engine';
+import { SequencePlayer } from '@/components/planner/SequencePlayer';
 import type {
   LoadDto,
   VehicleDto,
@@ -19,7 +19,6 @@ import type {
   PackageDefinitionDto,
   ValidationResult,
   RotationIndex,
-  PackingPackage,
 } from '@cargoflow/shared-types';
 
 export default function LoadPlannerPage() {
@@ -44,6 +43,9 @@ export default function LoadPlannerPage() {
   } = usePlannerStore();
 
   const [isPacking, setIsPacking] = useState(false);
+  const [isSequenceMode, setIsSequenceMode] = useState(false);
+  const [sequenceStep, setSequenceStep] = useState(1);
+  const [isPlayingSequence, setIsPlayingSequence] = useState(false);
 
   // Real-time synchronization hook
   useLoadRealtime(loadId);
@@ -58,6 +60,12 @@ export default function LoadPlannerPage() {
   const { data: packageDefinitions = [] } = useQuery({
     queryKey: ['package-definitions'],
     queryFn: () => api.get<PackageDefinitionDto[]>('/package-definitions'),
+  });
+
+  // Fetch Loading Sequence
+  const { data: sequence = [] } = useQuery({
+    queryKey: ['load-sequence', loadId],
+    queryFn: () => api.get<any[]>(`/loads/${loadId}/sequence`),
   });
 
   // Sync Load state with Planner Store
@@ -87,7 +95,6 @@ export default function LoadPlannerPage() {
       const res = await api.get<ValidationResult>(`/loads/${loadId}/validation`);
       setValidationResult(res);
 
-      // Collect colliding IDs
       const colliding = new Set<string>();
       res.issues.forEach((issue) => {
         if (issue.packageId) colliding.add(issue.packageId);
@@ -102,6 +109,25 @@ export default function LoadPlannerPage() {
   useEffect(() => {
     if (load) fetchValidation();
   }, [load, fetchValidation]);
+
+  // Auto-play loading sequence animation
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isPlayingSequence && isSequenceMode && sequence.length > 0) {
+      interval = setInterval(() => {
+        setSequenceStep((prev) => {
+          if (prev >= sequence.length) {
+            setIsPlayingSequence(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 1200);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlayingSequence, isSequenceMode, sequence.length]);
 
   // Mutation: Place or Move Package
   const placeMutation = useMutation({
@@ -119,8 +145,9 @@ export default function LoadPlannerPage() {
         rotationIndex: newPlacement.rotationIndex as RotationIndex,
       });
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
       setLoadVersion(loadVersion + 1);
       fetchValidation();
     },
@@ -140,6 +167,7 @@ export default function LoadPlannerPage() {
       api.delete(`/loads/${loadId}/placements/${placementId}?loadVersion=${loadVersion}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
       setLoadVersion(loadVersion + 1);
       fetchValidation();
     },
@@ -157,7 +185,6 @@ export default function LoadPlannerPage() {
   // Handler: Place Next Unplaced Item
   const handleQuickPlace = (loadPackageId: string) => {
     if (!load?.vehicle) return;
-    // Simple initial heuristic: place next to existing or at floor origin
     let targetX = 0;
     let targetY = 0;
     let targetZ = 0;
@@ -165,7 +192,7 @@ export default function LoadPlannerPage() {
     const existing = Array.from(placements.values());
     if (existing.length > 0) {
       const last = existing[existing.length - 1];
-      targetX = last.x + 1200; // Place downstream along length
+      targetX = last.x + 1200;
       if (targetX + 1200 > load.vehicle.interiorLength) {
         targetX = 0;
         targetY = (last.y + 800) % load.vehicle.interiorWidth;
@@ -209,55 +236,15 @@ export default function LoadPlannerPage() {
     removePlacementOptimistic(selectedLoadPackageId);
   };
 
-  // Handler: Auto-Pack with Greedy Engine
+  // Handler: Trigger Backend Auto-Pack with Loading Sequence
   const handleAutoPack = async () => {
-    if (!load?.vehicle || !load.loadPackages) return;
     setIsPacking(true);
-
     try {
-      const packingPackages: PackingPackage[] = load.loadPackages.map((lp) => ({
-        loadPackageId: lp.id,
-        packageDefinitionId: lp.packageDefinitionId,
-        length: lp.packageDefinition?.length || 1000,
-        width: lp.packageDefinition?.width || 1000,
-        height: lp.packageDefinition?.height || 1000,
-        weightKg: lp.packageDefinition?.weightKg || 100,
-        isFragile: lp.packageDefinition?.isFragile || false,
-        isStackable: lp.packageDefinition?.isStackable ?? true,
-        requiresUprightOrientation: lp.packageDefinition?.requiresUprightOrientation || false,
-        requiresFloorSupport: lp.packageDefinition?.requiresFloorSupport || false,
-        allowedRotations: (lp.packageDefinition?.allowedRotations as RotationIndex[]) || [0, 2],
-        priority: lp.priority || 5,
-      }));
-
-      const result = runPackingEngine({
-        loadId,
-        vehicleId: load.vehicle.id,
-        trailer: {
-          interiorLength: load.vehicle.interiorLength,
-          interiorWidth: load.vehicle.interiorWidth,
-          interiorHeight: load.vehicle.interiorHeight,
-          doorWidth: load.vehicle.doorWidth,
-          doorHeight: load.vehicle.doorHeight,
-          maxPayloadKg: load.vehicle.maxPayloadKg,
-        },
-        packages: packingPackages,
-      });
-
-      // Commit placements sequentially with server validation
-      for (const p of result.placements) {
-        await api.post(`/loads/${loadId}/placements`, {
-          loadPackageId: p.loadPackageId,
-          x: p.x,
-          y: p.y,
-          z: p.z,
-          rotationIndex: p.rotationIndex,
-          loadVersion,
-        });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      await api.post(`/loads/${loadId}/auto-pack`, { strategy: 'GREEDY' });
+      await queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      await queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
       fetchValidation();
+      setSequenceStep(1);
     } catch (err: any) {
       setConflictMessage(err?.message || 'Auto-packing encountered an error.');
     } finally {
@@ -291,16 +278,44 @@ export default function LoadPlannerPage() {
       {/* Center 3D Viewport / 2D Fallback */}
       <div className="relative flex-1 h-full overflow-hidden">
         <PlannerControls
+          loadId={loadId}
           onAutoPack={handleAutoPack}
           onRotateSelected={handleRotateSelected}
           onRemoveSelected={handleRemoveSelected}
           isPacking={isPacking}
+          isSequenceMode={isSequenceMode}
+          onToggleSequence={() => {
+            setIsSequenceMode(!isSequenceMode);
+            setIsPlayingSequence(false);
+            setSequenceStep(sequence.length || 1);
+          }}
         />
 
         {viewMode === '3D' ? (
-          <TrailerScene vehicle={load.vehicle} loadPackages={load.loadPackages || []} />
+          <TrailerScene
+            vehicle={load.vehicle}
+            loadPackages={load.loadPackages || []}
+            sequenceItems={sequence}
+            visibleStep={isSequenceMode ? sequenceStep : null}
+          />
         ) : (
           <TwoDPlannerFallback vehicle={load.vehicle} loadPackages={load.loadPackages || []} />
+        )}
+
+        {/* Loading Sequence Stepper Controls */}
+        {isSequenceMode && sequence.length > 0 && (
+          <SequencePlayer
+            currentStep={sequenceStep}
+            totalSteps={sequence.length}
+            isPlaying={isPlayingSequence}
+            onNext={() => setSequenceStep((s) => Math.min(sequence.length, s + 1))}
+            onPrev={() => setSequenceStep((s) => Math.max(1, s - 1))}
+            onTogglePlay={() => setIsPlayingSequence(!isPlayingSequence)}
+            onReset={() => {
+              setIsPlayingSequence(false);
+              setSequenceStep(1);
+            }}
+          />
         )}
       </div>
 
@@ -309,4 +324,3 @@ export default function LoadPlannerPage() {
     </div>
   );
 }
-

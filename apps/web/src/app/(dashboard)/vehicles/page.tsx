@@ -5,13 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Truck, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDimension, formatWeight } from '@/lib/utils';
-import type { VehicleDto, VehicleType } from '@cargoflow/shared-types';
+import type { VehicleDto } from '@cargoflow/shared-types';
+import { VehicleType } from '@cargoflow/shared-types';
 
 export default function VehiclesPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
-  const [type, setType] = useState<VehicleType>('SEMI_TRAILER');
+  const [type, setType] = useState<VehicleType>(VehicleType.SEMI_TRAILER);
   const [interiorLength, setInteriorLength] = useState(13600);
   const [interiorWidth, setInteriorWidth] = useState(2450);
   const [interiorHeight, setInteriorHeight] = useState(2700);

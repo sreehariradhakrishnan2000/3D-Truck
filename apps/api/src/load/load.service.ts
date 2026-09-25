@@ -1,12 +1,17 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LoadGateway } from '../websocket/load.gateway';
+import { runPackingEngine } from '@cargoflow/packing-engine';
 import type { CreateLoadDto, UpdateLoadDto } from '@cargoflow/validation';
-import type { JwtPayload } from '@cargoflow/shared-types';
-import { LoadStatus, ErrorCode } from '@cargoflow/shared-types';
+import type { JwtPayload, RotationIndex, PackingPackage } from '@cargoflow/shared-types';
+import { LoadStatus, ErrorCode, WS_EVENTS } from '@cargoflow/shared-types';
 
 @Injectable()
 export class LoadService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private loadGateway: LoadGateway,
+  ) {}
 
   async findAll(user: JwtPayload, status?: LoadStatus) {
     return this.prisma.load.findMany({
@@ -31,6 +36,10 @@ export class LoadService {
           orderBy: { createdAt: 'asc' },
         },
         placements: true,
+        loadingSequence: {
+          include: { loadPackage: { include: { packageDefinition: true } } },
+          orderBy: { sequenceOrder: 'asc' },
+        },
       },
     });
     if (!load) throw new NotFoundException('Load not found');
@@ -125,5 +134,135 @@ export class LoadService {
       },
     });
   }
-}
 
+  async autoPack(loadId: string, user: JwtPayload, strategy: 'GREEDY' | 'BFD' = 'GREEDY') {
+    const load = await this.findOne(loadId, user);
+
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PACKING_STARTED, { loadId });
+
+    const packages: PackingPackage[] = load.loadPackages.map((lp) => ({
+      loadPackageId: lp.id,
+      packageDefinitionId: lp.packageDefinitionId,
+      length: lp.packageDefinition.length,
+      width: lp.packageDefinition.width,
+      height: lp.packageDefinition.height,
+      weightKg: lp.packageDefinition.weightKg,
+      isFragile: lp.packageDefinition.isFragile,
+      isStackable: lp.packageDefinition.isStackable,
+      requiresUprightOrientation: lp.packageDefinition.requiresUprightOrientation,
+      requiresFloorSupport: lp.packageDefinition.requiresFloorSupport,
+      allowedRotations: lp.packageDefinition.allowedRotations as RotationIndex[],
+      stopSequence: lp.stopSequence ?? undefined,
+      priority: lp.priority,
+    }));
+
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PACKING_PROGRESS, {
+      loadId,
+      progress: 50,
+      message: 'Arranging 3D packages...',
+    });
+
+    const result = runPackingEngine({
+      loadId,
+      vehicleId: load.vehicle.id,
+      trailer: {
+        interiorLength: load.vehicle.interiorLength,
+        interiorWidth: load.vehicle.interiorWidth,
+        interiorHeight: load.vehicle.interiorHeight,
+        doorWidth: load.vehicle.doorWidth,
+        doorHeight: load.vehicle.doorHeight,
+        maxPayloadKg: load.vehicle.maxPayloadKg,
+      },
+      packages,
+    });
+
+    // Loading Sequence: Deepest along length (lowest X) and lowest height (Z) first
+    const sortedForLoading = [...result.placements].sort((a, b) => {
+      if (a.x !== b.x) return a.x - b.x;
+      if (a.z !== b.z) return a.z - b.z;
+      return a.y - b.y;
+    });
+
+    const placementData = result.placements.map((p) => ({
+      loadId,
+      loadPackageId: p.loadPackageId,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      rotationIndex: p.rotationIndex,
+      createdById: user.sub,
+      updatedById: user.sub,
+    }));
+
+    const sequenceData = sortedForLoading.map((p, i) => ({
+      loadId,
+      loadPackageId: p.loadPackageId,
+      sequenceOrder: i + 1,
+      notes: `Step ${i + 1}: Place at (${Math.round(p.x)}mm, ${Math.round(p.y)}mm, ${Math.round(p.z)}mm)`,
+    }));
+
+    const placedIds = result.placements.map((p) => p.loadPackageId);
+    const unplacedIds = result.unplaced.map((u) => u.loadPackageId);
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.loadingSequenceItem.deleteMany({ where: { loadId } });
+        await tx.placement.deleteMany({ where: { loadId } });
+
+        if (placementData.length > 0) {
+          await tx.placement.createMany({ data: placementData });
+          await tx.loadPackage.updateMany({
+            where: { id: { in: placedIds } },
+            data: { status: 'PLACED' },
+          });
+        }
+
+        if (unplacedIds.length > 0) {
+          await tx.loadPackage.updateMany({
+            where: { id: { in: unplacedIds } },
+            data: { status: 'UNPLACEABLE' },
+          });
+        }
+
+        if (sequenceData.length > 0) {
+          await tx.loadingSequenceItem.createMany({ data: sequenceData });
+        }
+
+        await tx.load.update({
+          where: { id: loadId },
+          data: {
+            version: { increment: 1 },
+            volumeUtilizationPct: result.volumeUtilizationPct,
+            weightUtilizationPct: result.weightUtilizationPct,
+            validationPassed: result.success,
+          },
+        });
+      },
+      { timeout: 30000, maxWait: 10000 }
+    );
+
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PACKING_COMPLETED, result);
+
+    return this.findOne(loadId, user);
+  }
+
+  async getLoadingSequence(loadId: string, user: JwtPayload) {
+    const load = await this.prisma.load.findFirst({
+      where: { id: loadId, organizationId: user.orgId },
+    });
+    if (!load) throw new NotFoundException('Load not found');
+
+    return this.prisma.loadingSequenceItem.findMany({
+      where: { loadId },
+      include: {
+        loadPackage: {
+          include: {
+            packageDefinition: true,
+            placements: true,
+          },
+        },
+      },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+  }
+}

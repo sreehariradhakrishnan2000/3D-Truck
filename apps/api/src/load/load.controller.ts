@@ -66,5 +66,19 @@ export class LoadController {
   ) {
     return this.loadPackageService.removePackage(id, packageId, user);
   }
+
+  @Post(':id/auto-pack')
+  autoPack(
+    @Param('id') id: string,
+    @Body('strategy') strategy: 'GREEDY' | 'BFD',
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.loadService.autoPack(id, user, strategy);
+  }
+
+  @Get(':id/sequence')
+  getSequence(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.loadService.getLoadingSequence(id, user);
+  }
 }
 

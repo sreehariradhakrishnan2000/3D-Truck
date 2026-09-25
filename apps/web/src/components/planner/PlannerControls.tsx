@@ -1,21 +1,28 @@
 'use client';
 
-import { Camera, Eye, RotateCw, Sparkles, Trash2, Layers } from 'lucide-react';
+import Link from 'next/link';
+import { Camera, Eye, RotateCw, Sparkles, Trash2, Layers, ListOrdered, Printer } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
 import type { RotationIndex } from '@cargoflow/shared-types';
 
 interface PlannerControlsProps {
+  loadId: string;
   onAutoPack: () => void;
   onRotateSelected: () => void;
   onRemoveSelected: () => void;
   isPacking?: boolean;
+  isSequenceMode: boolean;
+  onToggleSequence: () => void;
 }
 
 export function PlannerControls({
+  loadId,
   onAutoPack,
   onRotateSelected,
   onRemoveSelected,
   isPacking,
+  isSequenceMode,
+  onToggleSequence,
 }: PlannerControlsProps) {
   const {
     viewMode,
@@ -60,7 +67,7 @@ export function PlannerControls({
         )}
       </div>
 
-      {/* Right controls: Selection actions & Auto-Pack */}
+      {/* Right controls: Selection actions, Sequence mode, Manifest & Auto-Pack */}
       <div className="flex items-center gap-2 pointer-events-auto">
         {selectedLoadPackageId && (
           <div className="flex items-center gap-1 rounded-2xl border border-slate-200/80 bg-white/90 p-1.5 shadow-apple-sm backdrop-blur-md">
@@ -82,6 +89,31 @@ export function PlannerControls({
           </div>
         )}
 
+        {/* Sequence Mode Toggle */}
+        <button
+          onClick={onToggleSequence}
+          className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold shadow-apple-sm backdrop-blur-md transition ${
+            isSequenceMode
+              ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold'
+              : 'border-slate-200/80 bg-white/90 text-slate-700 hover:bg-slate-50'
+          }`}
+          title="Loading Sequence Simulation"
+        >
+          <ListOrdered className="h-3.5 w-3.5 text-blue-600" />
+          <span>Sequence</span>
+        </button>
+
+        {/* Print Manifest Sheet */}
+        <Link
+          href={`/loads/${loadId}/manifest`}
+          className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 shadow-apple-sm backdrop-blur-md hover:bg-slate-50 transition"
+          title="Print Loading Manifest Sheet"
+        >
+          <Printer className="h-3.5 w-3.5 text-slate-500" />
+          <span>Manifest</span>
+        </Link>
+
+        {/* Auto-Pack button */}
         <button
           onClick={onAutoPack}
           disabled={isPacking}
@@ -98,4 +130,3 @@ export function PlannerControls({
     </div>
   );
 }
-
