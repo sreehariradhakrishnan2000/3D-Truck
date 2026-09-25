@@ -347,6 +347,8 @@ export const WS_EVENTS = {
   PACKING_COMPLETED: 'packing.completed',
   USER_JOINED: 'user.joined',
   USER_LEFT: 'user.left',
+  LOAD_PRESENCE: 'load.presence',
+  CURSOR_MOVED: 'cursor.moved',
   VALIDATION_UPDATED: 'validation.updated',
   ERROR: 'error',
 } as const;

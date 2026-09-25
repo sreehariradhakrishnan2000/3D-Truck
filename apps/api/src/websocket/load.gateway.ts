@@ -55,8 +55,11 @@ export class LoadGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.to(`load:${userData.loadId}`).emit(WS_EVENTS.USER_LEFT, {
         userId: userData.user.sub,
       });
+      this.connectedUsers.delete(client.id);
+      this.broadcastPresence(userData.loadId);
+    } else {
+      this.connectedUsers.delete(client.id);
     }
-    this.connectedUsers.delete(client.id);
   }
 
   @SubscribeMessage(WS_EVENTS.JOIN_LOAD)
@@ -67,7 +70,10 @@ export class LoadGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!client.user) throw new WsException('Unauthorized');
 
     const prev = this.connectedUsers.get(client.id);
-    if (prev?.loadId) client.leave(`load:${prev.loadId}`);
+    if (prev?.loadId) {
+      client.leave(`load:${prev.loadId}`);
+      this.broadcastPresence(prev.loadId);
+    }
 
     client.join(`load:${data.loadId}`);
     const entry = this.connectedUsers.get(client.id);
@@ -77,6 +83,8 @@ export class LoadGateway implements OnGatewayConnection, OnGatewayDisconnect {
       userId: client.user.sub,
       email: client.user.email,
     });
+
+    this.broadcastPresence(data.loadId);
 
     return { event: 'joinedLoad', data: { loadId: data.loadId } };
   }
@@ -90,6 +98,37 @@ export class LoadGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const entry = this.connectedUsers.get(client.id);
     if (entry) entry.loadId = undefined;
     client.to(`load:${data.loadId}`).emit(WS_EVENTS.USER_LEFT, { userId: client.user?.sub });
+    this.broadcastPresence(data.loadId);
+  }
+
+  @SubscribeMessage('cursor.move')
+  handleCursorMove(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { loadId: string; position: { x: number; y: number; z: number } },
+  ) {
+    if (!client.user) return;
+    client.to(`load:${data.loadId}`).emit(WS_EVENTS.CURSOR_MOVED, {
+      userId: client.user.sub,
+      email: client.user.email,
+      position: data.position,
+    });
+  }
+
+  private broadcastPresence(loadId: string) {
+    const usersInLoad: Array<{ userId: string; email: string }> = [];
+    const seen = new Set<string>();
+
+    for (const data of this.connectedUsers.values()) {
+      if (data.loadId === loadId && !seen.has(data.user.sub)) {
+        seen.add(data.user.sub);
+        usersInLoad.push({ userId: data.user.sub, email: data.user.email });
+      }
+    }
+
+    this.server.to(`load:${loadId}`).emit(WS_EVENTS.LOAD_PRESENCE, {
+      loadId,
+      users: usersInLoad,
+    });
   }
 
   /** Broadcast a placement event to all users in a load room (except the sender) */

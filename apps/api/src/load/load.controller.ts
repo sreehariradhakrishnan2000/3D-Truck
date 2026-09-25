@@ -80,5 +80,10 @@ export class LoadController {
   getSequence(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.loadService.getLoadingSequence(id, user);
   }
+
+  @Get(':id/audit-logs')
+  getAuditLogs(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.loadService.getAuditLogs(id, user);
+  }
 }
 

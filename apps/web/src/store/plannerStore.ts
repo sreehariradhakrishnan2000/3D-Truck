@@ -50,14 +50,25 @@ interface PlannerState {
 
   // Real-time collaborator cursors/users
   activeCollaborators: Array<{ userId: string; email: string }>;
-  setActiveCollaborators: (users: Array<{ userId: string; email: string }>) => void;
+  setActiveCollaborators: (
+    users:
+      | Array<{ userId: string; email: string }>
+      | ((prev: Array<{ userId: string; email: string }>) => Array<{ userId: string; email: string }>),
+  ) => void;
 
   // Notification / conflict banner
   conflictMessage: string | null;
   setConflictMessage: (msg: string | null) => void;
+
+  // Undo / Redo history
+  history: VisualPlacement[][];
+  future: VisualPlacement[][];
+  pushSnapshot: () => void;
+  undo: () => VisualPlacement[] | null;
+  redo: () => VisualPlacement[] | null;
 }
 
-export const usePlannerStore = create<PlannerState>((set) => ({
+export const usePlannerStore = create<PlannerState>((set, get) => ({
   loadId: null,
   loadVersion: 1,
   setLoad: (loadId, version) => set({ loadId, loadVersion: version }),
@@ -104,9 +115,58 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setValidationResult: (validationResult) => set({ validationResult }),
 
   activeCollaborators: [],
-  setActiveCollaborators: (activeCollaborators) => set({ activeCollaborators }),
+  setActiveCollaborators: (val) =>
+    set((state) => ({
+      activeCollaborators:
+        typeof val === 'function' ? val(state.activeCollaborators) : val,
+    })),
 
   conflictMessage: null,
   setConflictMessage: (conflictMessage) => set({ conflictMessage }),
+
+  // History implementation
+  history: [],
+  future: [],
+  pushSnapshot: () => {
+    const current = Array.from(get().placements.values());
+    set((state) => ({
+      history: [...state.history.slice(-20), current],
+      future: [],
+    }));
+  },
+  undo: () => {
+    const { history, placements } = get();
+    if (history.length === 0) return null;
+    const current = Array.from(placements.values());
+    const previous = history[history.length - 1];
+    const newHistory = history.slice(0, -1);
+
+    const map = new Map<string, VisualPlacement>();
+    previous.forEach((p) => map.set(p.loadPackageId, p));
+
+    set((state) => ({
+      placements: map,
+      history: newHistory,
+      future: [current, ...state.future.slice(0, 20)],
+    }));
+    return previous;
+  },
+  redo: () => {
+    const { future, placements } = get();
+    if (future.length === 0) return null;
+    const current = Array.from(placements.values());
+    const next = future[0];
+    const newFuture = future.slice(1);
+
+    const map = new Map<string, VisualPlacement>();
+    next.forEach((p) => map.set(p.loadPackageId, p));
+
+    set((state) => ({
+      placements: map,
+      history: [...state.history, current],
+      future: newFuture,
+    }));
+    return next;
+  },
 }));
 

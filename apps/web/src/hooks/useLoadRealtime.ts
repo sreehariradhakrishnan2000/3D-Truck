@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import { WS_EVENTS } from '@cargoflow/shared-types';
 import { usePlannerStore } from '@/store/plannerStore';
@@ -21,6 +22,8 @@ export function useLoadRealtime(loadId: string | null) {
     setLoadVersion,
   } = usePlannerStore();
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     if (!loadId || !user) return;
 
@@ -37,12 +40,21 @@ export function useLoadRealtime(loadId: string | null) {
       socket.emit(WS_EVENTS.JOIN_LOAD, { loadId });
     });
 
+    socket.on(WS_EVENTS.LOAD_PRESENCE, (payload: { users: Array<{ userId: string; email: string }> }) => {
+      if (payload?.users) {
+        setActiveCollaborators(payload.users);
+      }
+    });
+
     socket.on(WS_EVENTS.USER_JOINED, (payload: { userId: string; email: string }) => {
-      setActiveCollaborators([...activeCollaborators, payload]);
+      setActiveCollaborators((prev) => {
+        if (prev.some((p) => p.userId === payload.userId)) return prev;
+        return [...prev, payload];
+      });
     });
 
     socket.on(WS_EVENTS.USER_LEFT, (payload: { userId: string }) => {
-      setActiveCollaborators(activeCollaborators.filter((c) => c.userId !== payload.userId));
+      setActiveCollaborators((prev) => prev.filter((c) => c.userId !== payload.userId));
     });
 
     socket.on(WS_EVENTS.PLACEMENT_ADDED, (data: any) => {
@@ -56,6 +68,9 @@ export function useLoadRealtime(loadId: string | null) {
         isOptimistic: false,
       });
       if (data.loadVersion) setLoadVersion(data.loadVersion);
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
     });
 
     socket.on(WS_EVENTS.PLACEMENT_UPDATED, (data: any) => {
@@ -69,16 +84,36 @@ export function useLoadRealtime(loadId: string | null) {
         isOptimistic: false,
       });
       if (data.loadVersion) setLoadVersion(data.loadVersion);
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
     });
 
     socket.on(WS_EVENTS.PLACEMENT_REMOVED, (data: { loadPackageId: string; loadVersion?: number }) => {
       removePlacementOptimistic(data.loadPackageId);
       if (data.loadVersion) setLoadVersion(data.loadVersion);
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
+    });
+
+    socket.on(WS_EVENTS.LOAD_UPDATED, (data: { version?: number }) => {
+      if (data.version) setLoadVersion(data.version);
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
+    });
+
+    socket.on(WS_EVENTS.PACKING_COMPLETED, () => {
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
     });
 
     socket.on(WS_EVENTS.LOAD_CONFLICT, (data: { message: string; currentVersion?: number }) => {
       setConflictMessage(data.message || 'Conflict detected. Scene refreshed.');
       if (data.currentVersion) setLoadVersion(data.currentVersion);
+      queryClient.invalidateQueries({ queryKey: ['load', loadId] });
     });
 
     return () => {

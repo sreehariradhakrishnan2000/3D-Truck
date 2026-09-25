@@ -136,12 +136,13 @@ export class GreedyPackingEngine {
           rotIndex,
         );
 
+        if (pkg.requiresFloorSupport && ep.z > 0) continue;
         if (!checkContainment(item, trailer)) continue;
         const collision = checkCollisions(item, this.placedItems);
         if (collision.hasCollision) continue;
         if (!isItemSupported(item, this.placedItems)) continue;
 
-        // Score: minimize Z first, then Y, then X (pack floor-first, front-first)
+        // Score: pack floor-first (lowest Z), then along width (lowest Y), then length (lowest X)
         const score = ep.z * 1e12 + ep.y * 1e6 + ep.x;
         if (score < bestScore) {
           bestScore = score;
@@ -161,7 +162,7 @@ export class GreedyPackingEngine {
     );
 
     this.placedItems.push(placedItem);
-    this.addExtremePoints(placedItem);
+    this.addExtremePoints(placedItem, trailer);
 
     return {
       loadPackageId: pkg.loadPackageId,
@@ -173,20 +174,47 @@ export class GreedyPackingEngine {
     };
   }
 
-  /** Add new extreme points at the 3 edges of the newly placed item */
-  private addExtremePoints(item: PlacedItem) {
-    this.extremePoints.push(
+  /** Add new candidate extreme points at the bounding box projection edges */
+  private addExtremePoints(
+    item: PlacedItem,
+    trailer: ReturnType<typeof buildTrailerSpace>,
+  ) {
+    const candidates = [
       { x: item.bbox.max.x, y: item.bbox.min.y, z: item.bbox.min.z },
       { x: item.bbox.min.x, y: item.bbox.max.y, z: item.bbox.min.z },
       { x: item.bbox.min.x, y: item.bbox.min.y, z: item.bbox.max.z },
-    );
-    // Prune dominated points (a point p1 is dominated if there's a p2 with all coords ≤ p1)
-    this.extremePoints = this.extremePoints.filter(
-      (p1) =>
-        !this.extremePoints.some(
-          (p2) => p2 !== p1 && p2.x <= p1.x && p2.y <= p1.y && p2.z <= p1.z,
-        ),
-    );
+    ];
+
+    for (const c of candidates) {
+      // Must be within trailer bounds
+      if (
+        c.x >= trailer.bbox.max.x ||
+        c.y >= trailer.bbox.max.y ||
+        c.z >= trailer.bbox.max.z
+      ) {
+        continue;
+      }
+
+      // Must not be strictly inside any existing placed box
+      const isInside = this.placedItems.some(
+        (pi) =>
+          c.x >= pi.bbox.min.x &&
+          c.x < pi.bbox.max.x &&
+          c.y >= pi.bbox.min.y &&
+          c.y < pi.bbox.max.y &&
+          c.z >= pi.bbox.min.z &&
+          c.z < pi.bbox.max.z,
+      );
+      if (isInside) continue;
+
+      // Deduplicate
+      const exists = this.extremePoints.some(
+        (ep) => ep.x === c.x && ep.y === c.y && ep.z === c.z,
+      );
+      if (!exists) {
+        this.extremePoints.push(c);
+      }
+    }
   }
 }
 

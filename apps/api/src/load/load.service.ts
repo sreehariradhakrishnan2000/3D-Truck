@@ -237,6 +237,24 @@ export class LoadService {
             validationPassed: result.success,
           },
         });
+
+        // Record Audit Log
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.orgId,
+            loadId,
+            userId: user.sub,
+            action: 'AUTO_PACK_COMPLETED',
+            entityType: 'Load',
+            entityId: loadId,
+            newState: {
+              placedCount: result.placements.length,
+              unplacedCount: result.unplaced.length,
+              volumeUtilizationPct: result.volumeUtilizationPct,
+              weightUtilizationPct: result.weightUtilizationPct,
+            },
+          },
+        });
       },
       { timeout: 30000, maxWait: 10000 }
     );
@@ -263,6 +281,22 @@ export class LoadService {
         },
       },
       orderBy: { sequenceOrder: 'asc' },
+    });
+  }
+
+  async getAuditLogs(loadId: string, user: JwtPayload) {
+    const load = await this.prisma.load.findFirst({
+      where: { id: loadId, organizationId: user.orgId },
+    });
+    if (!load) throw new NotFoundException('Load not found');
+
+    return this.prisma.auditLog.findMany({
+      where: { loadId },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
     });
   }
 }

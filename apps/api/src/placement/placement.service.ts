@@ -10,10 +10,15 @@ import {
   checkContainment,
 } from '@cargoflow/geometry';
 import type { Dimensions3D, RotationIndex } from '@cargoflow/shared-types';
+import { LoadGateway } from '../websocket/load.gateway';
+import { WS_EVENTS } from '@cargoflow/shared-types';
 
 @Injectable()
 export class PlacementService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private loadGateway: LoadGateway,
+  ) {}
 
   async getPlacements(loadId: string, user: JwtPayload) {
     const load = await this.prisma.load.findFirst({ where: { id: loadId, organizationId: user.orgId } });
@@ -27,7 +32,7 @@ export class PlacementService {
    * containment, and collision before writing.
    */
   async createOrUpdatePlacement(loadId: string, dto: CreatePlacementDto, user: JwtPayload) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Lock the load row
       const loads = await tx.$queryRaw<Array<{ id: string; version: number; vehicleId: string }>>`
         SELECT id, version, "vehicleId"
@@ -131,14 +136,39 @@ export class PlacementService {
 
       // 11. Update package status + increment load version
       await tx.loadPackage.update({ where: { id: dto.loadPackageId }, data: { status: 'PLACED' } });
-      await tx.load.update({ where: { id: loadId }, data: { version: { increment: 1 } } });
+      const updatedLoad = await tx.load.update({ where: { id: loadId }, data: { version: { increment: 1 } } });
 
-      return placement;
+      // 12. Create audit log
+      await tx.auditLog.create({
+        data: {
+          organizationId: user.orgId,
+          loadId,
+          userId: user.sub,
+          action: 'PACKAGE_PLACED',
+          entityType: 'Placement',
+          entityId: placement.id,
+          newState: {
+            x: dto.x,
+            y: dto.y,
+            z: dto.z,
+            rotationIndex: dto.rotationIndex,
+            loadPackageId: dto.loadPackageId,
+          },
+        },
+      });
+
+      return { placement, newVersion: updatedLoad.version };
     });
+
+    // Broadcast to real-time room
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PLACEMENT_UPDATED, result.placement);
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.LOAD_UPDATED, { loadId, version: result.newVersion });
+
+    return result.placement;
   }
 
   async removePlacement(loadId: string, placementId: string, loadVersion: number, user: JwtPayload) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const loads = await tx.$queryRaw<Array<{ id: string; version: number }>>`
         SELECT id, version FROM "Load"
         WHERE id = ${loadId} AND "organizationId" = ${user.orgId}
@@ -160,8 +190,25 @@ export class PlacementService {
 
       await tx.placement.delete({ where: { id: placementId } });
       await tx.loadPackage.update({ where: { id: placement.loadPackageId }, data: { status: 'PENDING' } });
-      await tx.load.update({ where: { id: loadId }, data: { version: { increment: 1 } } });
+      const updatedLoad = await tx.load.update({ where: { id: loadId }, data: { version: { increment: 1 } } });
+
+      await tx.auditLog.create({
+        data: {
+          organizationId: user.orgId,
+          loadId,
+          userId: user.sub,
+          action: 'PACKAGE_REMOVED',
+          entityType: 'Placement',
+          entityId: placementId,
+          previousState: { placementId, loadPackageId: placement.loadPackageId },
+        },
+      });
+
+      return { newVersion: updatedLoad.version };
     });
+
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PLACEMENT_REMOVED, { placementId });
+    this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.LOAD_UPDATED, { loadId, version: result.newVersion });
   }
 }
 

@@ -41,3 +41,4 @@ process.on('SIGTERM', async () => {
   await worker.close();
   await prisma.$disconnect();
 });
+

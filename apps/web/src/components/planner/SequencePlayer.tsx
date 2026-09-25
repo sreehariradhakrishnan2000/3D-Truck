@@ -70,3 +70,4 @@ export function SequencePlayer({
     </div>
   );
 }
+

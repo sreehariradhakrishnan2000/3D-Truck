@@ -1,8 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { Camera, Eye, RotateCw, Sparkles, Trash2, Layers, ListOrdered, Printer } from 'lucide-react';
+import {
+  RotateCw,
+  Sparkles,
+  Trash2,
+  Layers,
+  ListOrdered,
+  Printer,
+  Undo2,
+  Redo2,
+  History,
+  QrCode,
+} from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
+import { CollaboratorPresence } from './CollaboratorPresence';
 import type { RotationIndex } from '@cargoflow/shared-types';
 
 interface PlannerControlsProps {
@@ -10,6 +22,12 @@ interface PlannerControlsProps {
   onAutoPack: () => void;
   onRotateSelected: () => void;
   onRemoveSelected: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onOpenAuditLogs: () => void;
+  onOpenBarcode: () => void;
   isPacking?: boolean;
   isSequenceMode: boolean;
   onToggleSequence: () => void;
@@ -20,6 +38,12 @@ export function PlannerControls({
   onAutoPack,
   onRotateSelected,
   onRemoveSelected,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onOpenAuditLogs,
+  onOpenBarcode,
   isPacking,
   isSequenceMode,
   onToggleSequence,
@@ -65,6 +89,31 @@ export function PlannerControls({
             ))}
           </div>
         )}
+
+        {/* Undo / Redo controls */}
+        <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition"
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Center: Live Collaborators */}
+      <div className="hidden lg:flex items-center rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-1.5 shadow-apple-sm backdrop-blur-md pointer-events-auto">
+        <CollaboratorPresence />
       </div>
 
       {/* Right controls: Selection actions, Sequence mode, Manifest & Auto-Pack */}
@@ -88,6 +137,26 @@ export function PlannerControls({
             </button>
           </div>
         )}
+
+        {/* Audit Trail Button */}
+        <button
+          onClick={onOpenAuditLogs}
+          className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 shadow-apple-sm backdrop-blur-md hover:bg-slate-50 transition"
+          title="View Load Audit Trail & History"
+        >
+          <History className="h-3.5 w-3.5 text-slate-500" />
+          <span className="hidden sm:inline">Audit Trail</span>
+        </button>
+
+        {/* Barcode / QR Button */}
+        <button
+          onClick={onOpenBarcode}
+          className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 shadow-apple-sm backdrop-blur-md hover:bg-slate-50 transition"
+          title="View Barcode / QR Label"
+        >
+          <QrCode className="h-3.5 w-3.5 text-slate-500" />
+          <span className="hidden sm:inline">Barcode</span>
+        </button>
 
         {/* Sequence Mode Toggle */}
         <button

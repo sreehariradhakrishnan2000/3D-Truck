@@ -12,6 +12,8 @@ import { PlannerControls } from '@/components/planner/PlannerControls';
 import { CargoTray } from '@/components/planner/CargoTray';
 import { ValidationPanel } from '@/components/planner/ValidationPanel';
 import { SequencePlayer } from '@/components/planner/SequencePlayer';
+import { AuditHistoryModal } from '@/components/planner/AuditHistoryModal';
+import { BarcodeModal } from '@/components/planner/BarcodeModal';
 import type {
   LoadDto,
   VehicleDto,
@@ -40,12 +42,19 @@ export default function LoadPlannerPage() {
     setValidationResult,
     setCollidingPackageIds,
     setConflictMessage,
+    pushSnapshot,
+    undo,
+    redo,
+    history,
+    future,
   } = usePlannerStore();
 
   const [isPacking, setIsPacking] = useState(false);
   const [isSequenceMode, setIsSequenceMode] = useState(false);
   const [sequenceStep, setSequenceStep] = useState(1);
   const [isPlayingSequence, setIsPlayingSequence] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
 
   // Real-time synchronization hook
   useLoadRealtime(loadId);
@@ -214,6 +223,7 @@ export default function LoadPlannerPage() {
     const current = placements.get(selectedLoadPackageId);
     if (!current) return;
 
+    pushSnapshot();
     const nextRotation = ((current.rotationIndex + 1) % 6) as RotationIndex;
     placeMutation.mutate({
       loadPackageId: selectedLoadPackageId,
@@ -230,19 +240,59 @@ export default function LoadPlannerPage() {
     const current = placements.get(selectedLoadPackageId);
     if (!current) return;
 
+    pushSnapshot();
     if (current.id) {
       removePlacementMutation.mutate(current.id);
     }
     removePlacementOptimistic(selectedLoadPackageId);
   };
 
+  // Undo / Redo Handlers
+  const handleUndo = useCallback(() => {
+    const previous = undo();
+    if (previous) {
+      fetchValidation();
+    }
+  }, [undo, fetchValidation]);
+
+  const handleRedo = useCallback(() => {
+    const next = redo();
+    if (next) {
+      fetchValidation();
+    }
+  }, [redo, fetchValidation]);
+
+  // Keyboard shortcut listener (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'y' || (e.key === 'z' && e.shiftKey))
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
   // Handler: Trigger Backend Auto-Pack with Loading Sequence
   const handleAutoPack = async () => {
+    pushSnapshot();
     setIsPacking(true);
     try {
       await api.post(`/loads/${loadId}/auto-pack`, { strategy: 'GREEDY' });
       await queryClient.invalidateQueries({ queryKey: ['load', loadId] });
       await queryClient.invalidateQueries({ queryKey: ['load-sequence', loadId] });
+      await queryClient.invalidateQueries({ queryKey: ['load-audit-logs', loadId] });
       fetchValidation();
       setSequenceStep(1);
     } catch (err: any) {
@@ -282,6 +332,12 @@ export default function LoadPlannerPage() {
           onAutoPack={handleAutoPack}
           onRotateSelected={handleRotateSelected}
           onRemoveSelected={handleRemoveSelected}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={history.length > 0}
+          canRedo={future.length > 0}
+          onOpenAuditLogs={() => setIsAuditModalOpen(true)}
+          onOpenBarcode={() => setIsBarcodeModalOpen(true)}
           isPacking={isPacking}
           isSequenceMode={isSequenceMode}
           onToggleSequence={() => {
@@ -321,6 +377,20 @@ export default function LoadPlannerPage() {
 
       {/* Right Validation Diagnostics Panel */}
       <ValidationPanel load={load} vehicle={load.vehicle} />
+
+      {/* Audit History Timeline Modal */}
+      <AuditHistoryModal
+        loadId={loadId}
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+      />
+
+      {/* Barcode / QR Identification Modal */}
+      <BarcodeModal
+        load={load}
+        isOpen={isBarcodeModalOpen}
+        onClose={() => setIsBarcodeModalOpen(false)}
+      />
     </div>
   );
 }
