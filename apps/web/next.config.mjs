@@ -5,8 +5,8 @@ const nextConfig = {
   compress: true,
   output: 'standalone',
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.cargoflow.com/api' : 'http://localhost:3001/api'),
-    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || (process.env.NODE_ENV === 'production' ? 'https://api.cargoflow.com' : 'http://localhost:3001'),
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
+    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || '',
   },
 
   // Unoptimized images allow static & edge delivery across Cloudflare's Global CDN
@@ -26,8 +26,21 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
           {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',

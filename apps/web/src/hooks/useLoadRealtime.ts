@@ -24,7 +24,7 @@ export function useLoadRealtime(loadId: string | null) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!loadId || !user) return;
+    if (!loadId || !user || !envConfig.wsUrl) return;
 
     const token = api.getToken();
     const socket = io(`${envConfig.wsUrl}/ws`, {

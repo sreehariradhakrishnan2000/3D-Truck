@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Truck, ArrowRight, ShieldCheck, Lock, Mail } from 'lucide-react';
+import { Truck, ArrowRight, Lock, Mail, Globe, Settings, Check } from 'lucide-react';
 import { api } from '@/lib/api';
+import { envConfig } from '@/lib/config';
 import { useAuthStore } from '@/store/authStore';
 
 export default function LoginPage() {
@@ -15,6 +16,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [showConfig, setShowConfig] = useState(false);
+  const [savedUrlSuccess, setSavedUrlSuccess] = useState(false);
+
+  useEffect(() => {
+    setApiUrl(envConfig.apiUrl);
+  }, []);
+
+  const handleSaveApiUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    envConfig.setApiUrl(apiUrl);
+    setSavedUrlSuccess(true);
+    setTimeout(() => setSavedUrlSuccess(false), 2000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +44,14 @@ export default function LoginPage() {
       login(data.accessToken);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err?.message || 'Invalid email or password. Please try again.');
+      const msg = err?.message || 'Invalid email or password.';
+      if (msg.includes('Failed to fetch') || msg.includes('not configured') || msg.includes('NetworkError') || msg.includes('CORS')) {
+        setError(
+          `Cannot reach API server at "${envConfig.apiUrl || 'unconfigured'}". Please verify your Cloudflare Tunnel or backend URL.`
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,7 +80,7 @@ export default function LoginPage() {
           <p className="mt-1 text-xs text-slate-500">Enter your credentials to access the load planning workspace</p>
 
           {error && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600 leading-relaxed">
               {error}
             </div>
           )}
@@ -137,6 +159,42 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          {/* API Server Endpoint Settings */}
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span className="flex items-center gap-1.5 font-medium truncate max-w-[260px]">
+                <Globe className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                API: {apiUrl ? apiUrl : 'Not configured'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowConfig(!showConfig)}
+                className="text-blue-600 hover:underline flex items-center gap-1 shrink-0 ml-2"
+              >
+                <Settings className="h-3 w-3" />
+                {showConfig ? 'Hide' : 'Change'}
+              </button>
+            </div>
+
+            {showConfig && (
+              <form onSubmit={handleSaveApiUrl} className="mt-3 flex gap-2">
+                <input
+                  type="url"
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                  placeholder="https://api.yourdomain.com/api"
+                  className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                >
+                  {savedUrlSuccess ? <Check className="h-3.5 w-3.5" /> : 'Save'}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -150,4 +208,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

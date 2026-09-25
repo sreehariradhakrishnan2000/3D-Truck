@@ -1,12 +1,9 @@
 /**
  * Centralized Environment Configuration & Security Validator for CargoFlow Web Frontend
  *
- * Guarantees zero silent fallbacks to localhost in production mode,
- * while allowing seamless local development and preview testing.
+ * Supports environment variables, local preview, and runtime endpoint configuration.
  */
 
-const DEFAULT_PROD_API_URL = 'https://api.cargoflow.com/api';
-const DEFAULT_PROD_WS_URL = 'https://api.cargoflow.com';
 const DEFAULT_DEV_API_URL = 'http://localhost:3001/api';
 const DEFAULT_DEV_WS_URL = 'http://localhost:3001';
 
@@ -20,14 +17,21 @@ function validateAndGetApiUrl(): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocal = isBrowserLocalhost();
 
+  // 1. Runtime override via localStorage (allows connecting Cloudflare Worker to Cloudflare Tunnel)
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('cf_api_url');
+    if (saved) return saved.replace(/\/+$/, '');
+  }
+
+  // 2. Build-time or deployment environment variable
   let url = process.env.NEXT_PUBLIC_API_URL;
 
   if (!url) {
-    url = isLocal ? DEFAULT_DEV_API_URL : (isProduction ? DEFAULT_PROD_API_URL : DEFAULT_DEV_API_URL);
+    url = isLocal ? DEFAULT_DEV_API_URL : '';
   }
 
-  // If in real production (not local developer testing)
-  if (isProduction && !isLocal) {
+  // 3. Security check: in real production, reject plaintext HTTP and localhost
+  if (isProduction && !isLocal && url) {
     if (!url.startsWith('https://')) {
       throw new Error(
         `CRITICAL SECURITY ERROR: NEXT_PUBLIC_API_URL must use https:// in production. Found: ${url}`
@@ -40,21 +44,28 @@ function validateAndGetApiUrl(): string {
     }
   }
 
-  return url;
+  return url ? url.replace(/\/+$/, '') : '';
 }
 
 function validateAndGetWsUrl(): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const isLocal = isBrowserLocalhost();
 
+  // 1. Runtime override via localStorage
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('cf_ws_url');
+    if (saved) return saved.replace(/\/+$/, '');
+  }
+
+  // 2. Build-time or deployment environment variable
   let url = process.env.NEXT_PUBLIC_WS_URL;
 
   if (!url) {
-    url = isLocal ? DEFAULT_DEV_WS_URL : (isProduction ? DEFAULT_PROD_WS_URL : DEFAULT_DEV_WS_URL);
+    url = isLocal ? DEFAULT_DEV_WS_URL : '';
   }
 
-  // If in real production (not local developer testing)
-  if (isProduction && !isLocal) {
+  // 3. Security check: in real production, reject unencrypted WS and localhost
+  if (isProduction && !isLocal && url) {
     if (!url.startsWith('https://') && !url.startsWith('wss://')) {
       throw new Error(
         `CRITICAL SECURITY ERROR: NEXT_PUBLIC_WS_URL must use https:// or wss:// in production. Found: ${url}`
@@ -67,7 +78,7 @@ function validateAndGetWsUrl(): string {
     }
   }
 
-  return url;
+  return url ? url.replace(/\/+$/, '') : '';
 }
 
 export const envConfig = {
@@ -76,6 +87,24 @@ export const envConfig = {
   },
   get wsUrl(): string {
     return validateAndGetWsUrl();
+  },
+  setApiUrl(url: string) {
+    if (typeof window !== 'undefined') {
+      if (url) {
+        localStorage.setItem('cf_api_url', url.trim().replace(/\/+$/, ''));
+      } else {
+        localStorage.removeItem('cf_api_url');
+      }
+    }
+  },
+  setWsUrl(url: string) {
+    if (typeof window !== 'undefined') {
+      if (url) {
+        localStorage.setItem('cf_ws_url', url.trim().replace(/\/+$/, ''));
+      } else {
+        localStorage.removeItem('cf_ws_url');
+      }
+    }
   },
   isProduction: process.env.NODE_ENV === 'production',
 };

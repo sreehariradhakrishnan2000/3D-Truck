@@ -23,6 +23,11 @@ class ApiClient {
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const apiBase = envConfig.apiUrl;
+    if (!apiBase) {
+      throw new Error(
+        'Backend API endpoint is not configured. Set NEXT_PUBLIC_API_URL or specify your API/Tunnel URL.'
+      );
+    }
     const url = `${apiBase}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const token = this.getToken();
 
