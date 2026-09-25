@@ -62,16 +62,9 @@ export default function LoginPage() {
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-600 leading-relaxed shadow-sm">
               <div className="font-semibold flex items-center gap-1.5 text-red-700">
                 <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-                <span>{error.includes('NEXT_PUBLIC_API_URL') ? 'Backend Endpoint Required' : 'Authentication Error'}</span>
+                <span>Authentication Error</span>
               </div>
               <p className="mt-1 text-red-600">{error}</p>
-              {error.includes('NEXT_PUBLIC_API_URL') && (
-                <div className="mt-2.5 pt-2 border-t border-red-200/80 text-[11px] text-slate-700 space-y-1.5">
-                  <p className="font-semibold text-slate-800">To connect your backend:</p>
-                  <p>1. <strong>Quick Tunnel (Free Preview):</strong> Run <code className="bg-red-100/80 text-red-900 px-1 py-0.5 rounded font-mono text-[10px]">npm run tunnel:api</code> on your server.</p>
-                  <p>2. <strong>Cloudflare Workers:</strong> In Cloudflare Dashboard → <code className="bg-red-100/80 text-red-900 px-1 py-0.5 rounded font-mono text-[10px]">3d-truck</code> → <strong>Settings</strong> → <strong>Variables and Secrets</strong>, add variable <code className="bg-red-100/80 text-red-900 px-1 py-0.5 rounded font-mono text-[10px]">NEXT_PUBLIC_API_URL</code>.</p>
-                </div>
-              )}
             </div>
           )}
 

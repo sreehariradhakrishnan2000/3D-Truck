@@ -65,5 +65,16 @@ describe('Production URL Configuration & Security Validator', () => {
       validateProductionEndpoints('https://api.my-real-freight.com/api', 'wss://localhost:3001')
     ).toThrowError(/NEXT_PUBLIC_WS_URL cannot reference 'localhost'/);
   });
+
+  it('8. Accepts same-origin relative path /api in production', () => {
+    const result = validateProductionEndpoints('/api');
+    expect(result.apiUrl).toBe('/api');
+  });
+
+  it('9. Accepts same-origin relative path /api with relative wsUrl', () => {
+    const result = validateProductionEndpoints('/api', '/ws');
+    expect(result.apiUrl).toBe('/api');
+    expect(result.wsUrl).toBe('/ws');
+  });
 });
 

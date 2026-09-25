@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * CargoFlow Deployment Diagnostic Tool
- * 
- * Verifies live Cloudflare deployment health, MIME type handling,
- * API health/readiness, CORS preflights, and WebSocket connectivity.
+ * CargoFlow Single Public URL Deployment Diagnostic Suite
+ *
+ * Verifies live Cloudflare Worker deployment health, MIME type handling,
+ * same-origin API proxying (/api/*), and WebSocket proxying (/socket.io/*, /ws).
  */
 
 import fs from 'fs';
@@ -24,31 +24,15 @@ function getArg(flag) {
   return null;
 }
 
-// 1. Determine targets
-const DEFAULT_FRONTEND = 'https://3d-truck.sreehariradhakrishnan2000.workers.dev';
-const frontendUrl = getArg('--frontend') || process.env.FRONTEND_URL || DEFAULT_FRONTEND;
-
-let apiUrl = getArg('--api') || process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-let wsUrl = getArg('--ws') || process.env.WS_URL || process.env.NEXT_PUBLIC_WS_URL;
-
-// If API not specified, try reading apps/web/.env.tunnel.local
-if (!apiUrl) {
-  const tunnelEnvPath = path.join(rootDir, 'apps', 'web', '.env.tunnel.local');
-  if (fs.existsSync(tunnelEnvPath)) {
-    const content = fs.readFileSync(tunnelEnvPath, 'utf-8');
-    const apiMatch = content.match(/NEXT_PUBLIC_API_URL=(.+)/);
-    const wsMatch = content.match(/NEXT_PUBLIC_WS_URL=(.+)/);
-    if (apiMatch) apiUrl = apiMatch[1].trim();
-    if (wsMatch) wsUrl = wsMatch[1].trim();
-  }
-}
+const DEFAULT_GATEWAY = 'https://3d-truck.sreehariradhakrishnan2000.workers.dev';
+const publicUrl = (getArg('--url') || getArg('--frontend') || process.env.PUBLIC_URL || DEFAULT_GATEWAY).replace(/\/+$/, '');
 
 console.log('='.repeat(70));
-console.log('🩺 CargoFlow — Live Deployment Diagnostic Suite');
+console.log('🩺 CargoFlow — Single Public workers.dev Deployment Diagnostic');
 console.log('='.repeat(70));
-console.log(`Frontend URL: ${frontendUrl}`);
-console.log(`API URL:      ${apiUrl || '(Not specified - skipping backend tests)'}`);
-console.log(`WS URL:       ${wsUrl || '(Derived/Not specified)'}`);
+console.log(`Public Gateway URL:  ${publicUrl}`);
+console.log(`Same-Origin API:     ${publicUrl}/api/*`);
+console.log(`Same-Origin WS:      ${publicUrl.replace(/^http/, 'ws')}/ws`);
 console.log('='.repeat(70) + '\n');
 
 let totalChecks = 0;
@@ -73,8 +57,8 @@ async function runCheck(name, testFn) {
 
 async function run() {
   // Test 1: Frontend root document
-  await runCheck('Frontend Root HTML Delivery', async () => {
-    const res = await fetch(frontendUrl, { method: 'GET' });
+  await runCheck('Frontend Root Document (HTML delivery)', async () => {
+    const res = await fetch(publicUrl, { method: 'GET' });
     if (!res.ok) throw new Error(`HTTP status ${res.status} ${res.statusText}`);
     const ctype = res.headers.get('content-type') || '';
     if (!ctype.includes('text/html')) {
@@ -86,7 +70,7 @@ async function run() {
 
   // Test 2: HTML Caching Header Safety
   await runCheck('HTML Cache-Control Disables Stale Bundles', async () => {
-    const res = await fetch(frontendUrl, { method: 'GET' });
+    const res = await fetch(publicUrl, { method: 'GET' });
     const cacheControl = res.headers.get('cache-control') || '';
     if (!cacheControl.includes('no-cache') && !cacheControl.includes('no-store')) {
       throw new Error(`HTML response does not include no-cache or no-store: ${cacheControl}`);
@@ -96,7 +80,7 @@ async function run() {
 
   // Test 3: Static Asset MIME-type Safeguard (Edge Middleware)
   await runCheck('Missing JS Chunk Returns text/plain 404 (Not HTML)', async () => {
-    const missingChunkUrl = `${frontendUrl.replace(/\/+$/, '')}/_next/static/chunks/diag-test-${Date.now()}.js`;
+    const missingChunkUrl = `${publicUrl}/_next/static/chunks/diag-test-${Date.now()}.js`;
     const res = await fetch(missingChunkUrl, { method: 'GET' });
     if (res.status !== 404) {
       throw new Error(`Expected 404 for missing chunk, got: ${res.status}`);
@@ -108,66 +92,68 @@ async function run() {
     return `Status: 404, Content-Type: ${ctype}`;
   });
 
-  // If API URL provided, run API and WebSocket checks
-  if (apiUrl) {
-    const cleanApi = apiUrl.replace(/\/+$/, '');
-    const apiBase = cleanApi.replace(/\/api$/, '');
+  // Test 4: Same-Origin API Health
+  await runCheck('Same-Origin API Health Check (GET /api/health)', async () => {
+    const healthUrl = `${publicUrl}/api/health`;
+    const res = await fetch(healthUrl, { method: 'GET' });
+    if (res.status === 503) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Worker returned 503: ${body.message || 'BACKEND_API_ORIGIN not configured or reachable'}`);
+    }
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const data = await res.json();
+    return JSON.stringify(data);
+  });
 
-    // Test 4: API Health
-    await runCheck('API Health Endpoint (/health or /api/health)', async () => {
-      const healthUrl = cleanApi.endsWith('/api') ? `${cleanApi}/health` : `${cleanApi}/api/health`;
-      const res = await fetch(healthUrl, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+  // Test 5: Same-Origin API Readiness / Database Connection
+  await runCheck('Same-Origin API Readiness Check (GET /api/ready)', async () => {
+    const readyUrl = `${publicUrl}/api/ready`;
+    const res = await fetch(readyUrl, { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const data = await res.json();
+    return JSON.stringify(data);
+  });
+
+  // Test 6: Same-Origin Auth Login API
+  await runCheck('Same-Origin Auth Login (POST /api/auth/login)', async () => {
+    const loginUrl = `${publicUrl}/api/auth/login`;
+    // Attempt login with demo credentials
+    const res = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: 'admin@cargoflow.demo',
+        password: 'wrong-password-for-preflight-test',
+      }),
+    });
+
+    if (res.status === 502) {
+      throw new Error(`Worker returned 502 Bad Gateway while contacting backend`);
+    }
+
+    // Expect 401 Unauthorized (confirming NestJS received and evaluated credentials)
+    if (res.status === 401) {
+      return `Auth endpoint responsive (HTTP 401 for test credentials)`;
+    } else if (res.ok) {
       const data = await res.json();
-      return JSON.stringify(data);
-    });
+      return `Auth succeeded (accessToken present: ${Boolean(data.accessToken)})`;
+    }
+    return `Status: ${res.status}`;
+  });
 
-    // Test 5: API Readiness / Database Connection
-    await runCheck('API Readiness Endpoint (/ready or /api/ready)', async () => {
-      const readyUrl = cleanApi.endsWith('/api') ? `${cleanApi}/ready` : `${cleanApi}/api/ready`;
-      const res = await fetch(readyUrl, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP status ${res.status}`);
-      const data = await res.json();
-      return JSON.stringify(data);
-    });
-
-    // Test 6: CORS Preflight for Auth Login
-    await runCheck('CORS Preflight Check (OPTIONS /api/auth/login)', async () => {
-      const loginUrl = cleanApi.endsWith('/api') ? `${cleanApi}/auth/login` : `${cleanApi}/api/auth/login`;
-      const res = await fetch(loginUrl, {
-        method: 'OPTIONS',
-        headers: {
-          'Origin': frontendUrl,
-          'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'Content-Type, Authorization',
-        },
-      });
-
-      if (res.status >= 300 && res.status < 400) {
-        throw new Error(`Redirect detected during CORS preflight! (HTTP ${res.status})`);
-      }
-
-      const allowOrigin = res.headers.get('access-control-allow-origin');
-      const allowMethods = res.headers.get('access-control-allow-methods');
-
-      if (!allowOrigin) {
-        throw new Error(`Missing 'Access-Control-Allow-Origin' header in preflight response`);
-      }
-      return `Origin: ${allowOrigin}, Methods: ${allowMethods || '*'}`;
-    });
-
-    // Test 7: WebSocket / Socket.IO Polling Handshake
-    await runCheck('Socket.IO Polling Handshake', async () => {
-      const socketUrl = `${apiBase}/socket.io/?EIO=4&transport=polling`;
-      const res = await fetch(socketUrl, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP status ${res.status}`);
-      const body = await res.text();
-      if (!body.startsWith('0{')) {
-        throw new Error(`Unexpected Socket.IO response: ${body.slice(0, 50)}`);
-      }
-      return `Handshake OK (${body.slice(0, 20)}...)`;
-    });
-  }
+  // Test 7: Same-Origin Socket.IO Polling Handshake
+  await runCheck('Same-Origin Socket.IO Handshake (GET /socket.io/)', async () => {
+    const socketUrl = `${publicUrl}/socket.io/?EIO=4&transport=polling`;
+    const res = await fetch(socketUrl, { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const body = await res.text();
+    if (!body.startsWith('0{')) {
+      throw new Error(`Unexpected Socket.IO response: ${body.slice(0, 50)}`);
+    }
+    return `Handshake OK (${body.slice(0, 20)}...)`;
+  });
 
   console.log('\n' + '='.repeat(70));
   console.log(`DIAGNOSTIC SUMMARY: ${passedChecks}/${totalChecks} checks passed.`);
@@ -177,7 +163,7 @@ async function run() {
     console.error(`\n❌ Deployment diagnosis completed with ${failedChecks} failure(s).\n`);
     process.exit(1);
   } else {
-    console.log(`\n🎉 All checked endpoints are healthy and compliant with production rules.\n`);
+    console.log(`\n🎉 All gateway, API, and WebSocket endpoints are healthy and working!\n`);
     process.exit(0);
   }
 }
@@ -186,4 +172,3 @@ run().catch((err) => {
   console.error(`Fatal diagnostic error: ${err.message}`);
   process.exit(1);
 });
-

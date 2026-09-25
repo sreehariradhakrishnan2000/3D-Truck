@@ -104,9 +104,6 @@ async function start() {
   });
 
   function onTunnelReady(url) {
-    const apiUrl = `${url}/api`;
-    const wsUrl = url.replace(/^http/, 'ws');
-
     const envContent = [
       '# ============================================================',
       '# CARGOFLOW CLOUDFLARE QUICK TUNNEL PREVIEW CONFIGURATION',
@@ -116,8 +113,8 @@ async function start() {
       '# WARNING: Quick Tunnels (*.trycloudflare.com) are TEMPORARY',
       '# for testing and preview only. NOT FOR PERMANENT PRODUCTION.',
       '# ============================================================',
-      `NEXT_PUBLIC_API_URL=${apiUrl}`,
-      `NEXT_PUBLIC_WS_URL=${wsUrl}`,
+      `BACKEND_API_ORIGIN=${url}`,
+      `NEXT_PUBLIC_API_URL=/api`,
       '',
     ].join('\n');
 
@@ -126,19 +123,22 @@ async function start() {
     console.log('\n' + '='.repeat(60));
     console.log('🎉 CLOUDFLARE QUICK TUNNEL ESTABLISHED');
     console.log('='.repeat(60));
-    console.log(`Public Tunnel URL: ${url}`);
-    console.log(`API Base URL:      ${apiUrl}`);
-    console.log(`WebSocket URL:     ${wsUrl}`);
+    console.log(`Backend Origin:      ${url}`);
+    console.log(`Worker Gateway URL:  https://3d-truck.sreehariradhakrishnan2000.workers.dev`);
+    console.log(`Browser API URL:     https://3d-truck.sreehariradhakrishnan2000.workers.dev/api`);
+    console.log(`Browser WS URL:      wss://3d-truck.sreehariradhakrishnan2000.workers.dev/ws`);
     console.log('='.repeat(60));
     console.log(`📁 Saved temporary configuration to:`);
     console.log(`   ${path.relative(rootDir, envTunnelPath)}`);
     console.log('');
-    console.log('📋 Next steps to test with Cloudflare Worker:');
-    console.log('   1. To deploy frontend with this tunnel URL:');
-    console.log('      $env:NEXT_PUBLIC_API_URL="' + apiUrl + '"; npm run build:web:worker; npm run deploy:worker');
-    console.log('   2. Keep this terminal open to keep the tunnel alive.');
-    console.log('   3. Run diagnosis test anytime with:');
-    console.log(`      npm run diagnose:deployment -- --api ${apiUrl} --ws ${wsUrl}`);
+    console.log('📋 Next steps to connect Cloudflare Worker to this tunnel:');
+    console.log('   Option A (Automated Deploy):');
+    console.log('      npm run deploy:tunnel');
+    console.log('   Option B (Cloudflare Dashboard - no rebuild):');
+    console.log('      In Cloudflare Dashboard → Workers → 3d-truck → Settings → Variables,');
+    console.log(`      Set BACKEND_API_ORIGIN = ${url}`);
+    console.log('   Run diagnosis anytime:');
+    console.log('      npm run diagnose:deployment');
     console.log('='.repeat(60) + '\n');
   }
 

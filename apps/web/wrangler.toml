@@ -11,3 +11,4 @@ run_worker_first = false
 
 [vars]
 NODE_ENV = "production"
+BACKEND_API_ORIGIN = ""
