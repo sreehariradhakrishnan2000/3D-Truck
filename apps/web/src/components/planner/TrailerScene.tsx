@@ -93,10 +93,17 @@ export function TrailerScene({
   const W = vehicle.interiorWidth / 1000;
   const H = vehicle.interiorHeight / 1000;
 
-  // Target center for camera orbit: centered along the full truck (cab + trailer)
-  const targetX = (L - 4.5) / 2;
-  const targetY = TRAILER_FLOOR_Y + H / 2;
-  const targetZ = W / 2;
+  // Optimized center of the vehicle for framing
+  const targetX = L * 0.38;
+  const targetY = TRAILER_FLOOR_Y + H * 0.38;
+  const targetZ = W * 0.5;
+
+  // Default optimal camera position matching the reference screenshot
+  const defaultCamPos: [number, number, number] = [
+    L * 0.74,
+    TRAILER_FLOOR_Y + H * 2.1,
+    W * 3.7,
+  ];
 
   // Set Camera View Angles
   const setCameraView = (view: '3d' | 'top' | 'side' | 'front' | 'rear') => {
@@ -106,20 +113,20 @@ export function TrailerScene({
     const camera = controls.object;
 
     if (view === '3d') {
-      camera.position.set(targetX + 6, targetY + H * 1.8, targetZ + W * 3.6);
-      controls.target.set(targetX + 2, targetY, targetZ);
+      camera.position.set(...defaultCamPos);
+      controls.target.set(targetX, targetY, targetZ);
     } else if (view === 'top') {
-      camera.position.set(targetX + 2, targetY + H * 4.2, targetZ);
-      controls.target.set(targetX + 2, targetY, targetZ);
+      camera.position.set(L * 0.4, targetY + H * 4.4, W * 0.5);
+      controls.target.set(L * 0.4, targetY, W * 0.5);
     } else if (view === 'side') {
-      camera.position.set(targetX + 2, targetY, targetZ + W * 4.2);
-      controls.target.set(targetX + 2, targetY, targetZ);
+      camera.position.set(L * 0.4, targetY, W * 4.5);
+      controls.target.set(L * 0.4, targetY, W * 0.5);
     } else if (view === 'front') {
-      camera.position.set(-8.5, targetY + H * 0.4, targetZ);
-      controls.target.set(targetX - 2, targetY, targetZ);
+      camera.position.set(-7.5, targetY + H * 0.35, W * 0.5);
+      controls.target.set(L * 0.2, targetY, W * 0.5);
     } else if (view === 'rear') {
-      camera.position.set(L + 7.5, targetY + H * 0.4, targetZ);
-      controls.target.set(targetX + 4, targetY, targetZ);
+      camera.position.set(L + 7.5, targetY + H * 0.35, W * 0.5);
+      controls.target.set(L * 0.6, targetY, W * 0.5);
     }
 
     camera.zoom = 1;
@@ -338,18 +345,18 @@ export function TrailerScene({
         {/* Cinematic 3/4 Perspective Camera */}
         <PerspectiveCamera
           makeDefault
-          position={[targetX + 6, targetY + H * 1.8, targetZ + W * 3.6]}
-          fov={36}
+          position={defaultCamPos}
+          fov={34}
         />
 
         {/* OrbitControls: 360-degree rotation all around, clamped only at ground level */}
         <OrbitControls
           ref={controlsRef}
-          target={[targetX + 2, targetY, targetZ]}
+          target={[targetX, targetY, targetZ]}
           maxPolarAngle={Math.PI / 2 - 0.02} // Ground clamp prevents going under floor
           minPolarAngle={0.05} // Allows looking directly down from above
-          minDistance={3}
-          maxDistance={45}
+          minDistance={2}
+          maxDistance={50}
           enableDamping
           dampingFactor={0.08}
         />

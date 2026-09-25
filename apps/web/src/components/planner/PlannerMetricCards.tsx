@@ -139,3 +139,4 @@ export function PlannerMetricCards({ load, vehicle }: PlannerMetricCardsProps) {
     </div>
   );
 }
+

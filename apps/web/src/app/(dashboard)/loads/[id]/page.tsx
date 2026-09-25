@@ -71,6 +71,7 @@ export default function LoadPlannerPage() {
   const [showCenterOfGravity, setShowCenterOfGravity] = useState(true);
   const [transparentWalls, setTransparentWalls] = useState(true);
   const [lightingMode, setLightingMode] = useState<'light' | 'dark' | 'studio'>('light');
+  const [is3DExpanded, setIs3DExpanded] = useState(false);
 
   // Real-time synchronization hook
   useLoadRealtime(loadId);
@@ -358,8 +359,12 @@ export default function LoadPlannerPage() {
 
           {/* ── 3D SHOWCASE VIEWPORT & PACKAGE LIST PANEL ── */}
           <div className="grid grid-cols-12 gap-4">
-            {/* Center 3D Viewport (8 Columns) */}
-            <div className="col-span-8 bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden h-[540px] relative">
+            {/* Center 3D Viewport (Expansive & Prominent) */}
+            <div
+              className={`bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden h-[660px] relative transition-all duration-300 ${
+                is3DExpanded ? 'col-span-12' : 'col-span-12 xl:col-span-9'
+              }`}
+            >
               <TrailerScene
                 vehicle={load.vehicle}
                 loadPackages={load.loadPackages || []}
@@ -373,6 +378,17 @@ export default function LoadPlannerPage() {
                 lightingMode={lightingMode}
                 onRotateSelected={handleRotateSelected}
               />
+
+              {/* Floating Full-Width / Maximize 3D Toggle */}
+              <div className="absolute top-4 right-4 z-20 pointer-events-auto">
+                <button
+                  onClick={() => setIs3DExpanded(!is3DExpanded)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md shadow-md border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-50 transition"
+                  title={is3DExpanded ? 'Restore Package List' : 'Maximize 3D Workspace'}
+                >
+                  <span>{is3DExpanded ? 'Show List' : 'Maximize 3D'}</span>
+                </button>
+              </div>
 
               {/* Loading Sequence Stepper Controls (When simulation is toggled) */}
               {isSequenceMode && sequence.length > 0 && (
@@ -393,10 +409,15 @@ export default function LoadPlannerPage() {
               )}
             </div>
 
-            {/* Right Package List Panel (4 Columns) */}
-            <div className="col-span-4 h-[540px]">
-              <PackageListPanel loadPackages={load.loadPackages || []} />
-            </div>
+            {/* Right Package List Panel (Collapsible) */}
+            {!is3DExpanded && (
+              <div className="col-span-12 xl:col-span-3 h-[660px]">
+                <PackageListPanel
+                  loadPackages={load.loadPackages || []}
+                  onClose={() => setIs3DExpanded(true)}
+                />
+              </div>
+            )}
           </div>
 
           {/* ── BOTTOM 3 PANELS: Selected Package, Trailer Info, Camera & Display ── */}
