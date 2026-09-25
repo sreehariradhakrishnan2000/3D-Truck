@@ -8,4 +8,5 @@ coverage/
 *.log
 .DS_Store
 prisma/*.db
+*.tsbuildinfo
 

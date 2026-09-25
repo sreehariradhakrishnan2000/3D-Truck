@@ -1,0 +1,93 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { WS_EVENTS } from '@cargoflow/shared-types';
+import { usePlannerStore } from '@/store/plannerStore';
+import { useAuthStore } from '@/store/authStore';
+import { api } from '@/lib/api';
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
+
+export function useLoadRealtime(loadId: string | null) {
+  const socketRef = useRef<Socket | null>(null);
+  const { user } = useAuthStore();
+  const {
+    updatePlacementOptimistic,
+    removePlacementOptimistic,
+    setConflictMessage,
+    activeCollaborators,
+    setActiveCollaborators,
+    setLoadVersion,
+  } = usePlannerStore();
+
+  useEffect(() => {
+    if (!loadId || !user) return;
+
+    const token = api.getToken();
+    const socket = io(`${WS_URL}/ws`, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit(WS_EVENTS.JOIN_LOAD, { loadId });
+    });
+
+    socket.on(WS_EVENTS.USER_JOINED, (payload: { userId: string; email: string }) => {
+      setActiveCollaborators([...activeCollaborators, payload]);
+    });
+
+    socket.on(WS_EVENTS.USER_LEFT, (payload: { userId: string }) => {
+      setActiveCollaborators(activeCollaborators.filter((c) => c.userId !== payload.userId));
+    });
+
+    socket.on(WS_EVENTS.PLACEMENT_ADDED, (data: any) => {
+      updatePlacementOptimistic({
+        id: data.id,
+        loadPackageId: data.loadPackageId,
+        x: data.x,
+        y: data.y,
+        z: data.z,
+        rotationIndex: data.rotationIndex,
+        isOptimistic: false,
+      });
+      if (data.loadVersion) setLoadVersion(data.loadVersion);
+    });
+
+    socket.on(WS_EVENTS.PLACEMENT_UPDATED, (data: any) => {
+      updatePlacementOptimistic({
+        id: data.id,
+        loadPackageId: data.loadPackageId,
+        x: data.x,
+        y: data.y,
+        z: data.z,
+        rotationIndex: data.rotationIndex,
+        isOptimistic: false,
+      });
+      if (data.loadVersion) setLoadVersion(data.loadVersion);
+    });
+
+    socket.on(WS_EVENTS.PLACEMENT_REMOVED, (data: { loadPackageId: string; loadVersion?: number }) => {
+      removePlacementOptimistic(data.loadPackageId);
+      if (data.loadVersion) setLoadVersion(data.loadVersion);
+    });
+
+    socket.on(WS_EVENTS.LOAD_CONFLICT, (data: { message: string; currentVersion?: number }) => {
+      setConflictMessage(data.message || 'Conflict detected. Scene refreshed.');
+      if (data.currentVersion) setLoadVersion(data.currentVersion);
+    });
+
+    return () => {
+      socket.emit(WS_EVENTS.LEAVE_LOAD, { loadId });
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [loadId, user]);
+
+  return { socket: socketRef.current };
+}
+
