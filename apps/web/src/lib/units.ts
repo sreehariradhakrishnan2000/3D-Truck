@@ -26,14 +26,14 @@ export function formatDimension(mm: number, system: UnitSystem = 'metric', preci
 export function formatWeight(kg: number, system: UnitSystem = 'metric', precision = 1): string {
   if (system === 'imperial') {
     const lbs = kg * 2.20462;
-    return `${lbs.toLocaleString(undefined, { maximumFractionDigits: precision })} lbs`;
+    return `${lbs.toLocaleString('en-US', { maximumFractionDigits: precision })} lbs`;
   }
 
   if (kg >= 1000) {
     const tons = kg / 1000;
     return `${tons.toFixed(precision)} t`;
   }
-  return `${kg.toLocaleString(undefined, { maximumFractionDigits: precision })} kg`;
+  return `${kg.toLocaleString('en-US', { maximumFractionDigits: precision })} kg`;
 }
 
 /**

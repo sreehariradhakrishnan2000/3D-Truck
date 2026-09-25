@@ -171,7 +171,7 @@ export default function TeamManagementPage() {
                       </td>
 
                       <td className="py-4 px-6 text-slate-500 font-medium">
-                        {new Date(m.joinedAt).toLocaleDateString()}
+                        {new Date(m.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
 
                       {isOrgAdmin && (

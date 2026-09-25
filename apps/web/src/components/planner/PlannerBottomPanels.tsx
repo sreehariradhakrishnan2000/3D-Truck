@@ -139,7 +139,7 @@ export function PlannerBottomPanels({
                 Height: <span className="font-semibold text-slate-700">{(vehicle.interiorHeight / 1000).toFixed(2)} m</span>
               </div>
               <div className="col-span-2">
-                Max Payload: <span className="font-semibold text-slate-700">{vehicle.maxPayloadKg.toLocaleString()} kg</span>
+                Max Payload: <span className="font-semibold text-slate-700">{vehicle.maxPayloadKg.toLocaleString('en-US')} kg</span>
               </div>
               <div>
                 Door: <span className="font-semibold text-slate-700">{(vehicle.doorWidth / 1000).toFixed(2)} m</span>

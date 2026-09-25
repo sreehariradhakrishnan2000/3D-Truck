@@ -2,7 +2,7 @@
 
 import { AlertCircle, CheckCircle2, Users, Scale, Gauge, ShieldAlert, Route } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
-import { useSettingsStore } from '@/store/settingsStore';
+import { useHydratedSettings } from '@/store/settingsStore';
 import { formatWeight, formatVolume } from '@/lib/units';
 import type { LoadDto, VehicleDto } from '@cargoflow/shared-types';
 
@@ -12,7 +12,7 @@ interface ValidationPanelProps {
 }
 
 export function ValidationPanel({ load, vehicle }: ValidationPanelProps) {
-  const { unitSystem } = useSettingsStore();
+  const { unitSystem } = useHydratedSettings();
   const {
     validationResult,
     activeCollaborators,

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Box, Plus, Check, ArrowRight, X, RotateCw, Trash2 } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
-import { useSettingsStore } from '@/store/settingsStore';
+import { useHydratedSettings } from '@/store/settingsStore';
 import { formatDimension, formatWeight } from '@/lib/units';
 import type { LoadPackageDto, PackageDefinitionDto } from '@cargoflow/shared-types';
 
@@ -26,7 +26,7 @@ export function CargoTray({
   onRotatePackage,
   onRemovePlacement,
 }: CargoTrayProps) {
-  const { unitSystem } = useSettingsStore();
+  const { unitSystem } = useHydratedSettings();
   const {
     placements,
     selectedLoadPackageId,

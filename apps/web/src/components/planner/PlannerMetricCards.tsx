@@ -42,7 +42,7 @@ export function PlannerMetricCards({ load, vehicle }: PlannerMetricCardsProps) {
 
         <div className="mt-2">
           <div className="text-xl font-bold text-slate-800 tracking-tight">
-            {weightKg.toLocaleString()} kg
+            {weightKg.toLocaleString('en-US')} kg
           </div>
           <div className="mt-2.5 flex items-center gap-2">
             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">

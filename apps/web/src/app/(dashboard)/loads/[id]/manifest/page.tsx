@@ -1,10 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, ArrowLeft, Truck, CheckSquare, ShieldCheck, QrCode } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useSettingsStore } from '@/store/settingsStore';
+import { useHydratedSettings } from '@/store/settingsStore';
 import { formatDimension, formatWeight, formatVolume } from '@/lib/units';
 import type { LoadDto, VehicleDto, LoadPackageDto } from '@cargoflow/shared-types';
 
@@ -12,7 +13,12 @@ export default function LoadManifestPrintPage() {
   const params = useParams();
   const router = useRouter();
   const loadId = params.id as string;
-  const { unitSystem } = useSettingsStore();
+  const { unitSystem } = useHydratedSettings();
+  const [generatedDate, setGeneratedDate] = useState<string>('');
+
+  useEffect(() => {
+    setGeneratedDate(new Date().toLocaleString('en-US'));
+  }, []);
 
   const { data: load, isLoading } = useQuery({
     queryKey: ['load', loadId],
@@ -151,7 +157,7 @@ export default function LoadManifestPrintPage() {
               {load.loadNumber}
             </span>
             <p className="mt-1 text-xs text-slate-500">
-              Generated: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+              Generated: {generatedDate || 'Synchronized'}
             </p>
           </div>
         </div>

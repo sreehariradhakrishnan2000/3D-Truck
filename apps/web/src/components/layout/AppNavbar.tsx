@@ -16,14 +16,14 @@ import {
   Grid,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useSettingsStore } from '@/store/settingsStore';
+import { useHydratedSettings } from '@/store/settingsStore';
 import { cn } from '@/lib/utils';
 
 export function AppNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { unitSystem, toggleUnitSystem } = useSettingsStore();
+  const { unitSystem, toggleUnitSystem } = useHydratedSettings();
 
   const navItems = [
     { label: 'Home', href: '/dashboard', icon: null },

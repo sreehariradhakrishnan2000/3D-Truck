@@ -114,7 +114,7 @@ export function AuditHistoryModal({ loadId, isOpen, onClose }: AuditHistoryModal
           ) : (
             logs.map((log) => {
               const badge = getActionBadge(log.action);
-              const formattedDate = new Date(log.createdAt).toLocaleString(undefined, {
+              const formattedDate = new Date(log.createdAt).toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',

@@ -37,8 +37,8 @@ function getBackendOrigin(): string {
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // 1. Static asset guard: Return text/plain 404 for missing chunks
-  if (pathname.startsWith('/_next/static/')) {
+  // 1. Static asset guard: In production Cloudflare Workers, return text/plain 404 for missing chunks
+  if (process.env.NODE_ENV === 'production' && pathname.startsWith('/_next/static/')) {
     return new NextResponse('Asset Not Found', {
       status: 404,
       headers: {

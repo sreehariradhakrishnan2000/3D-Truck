@@ -22,7 +22,7 @@ export function ReferenceKpiPills({ load }: ReferenceKpiPillsProps) {
         <span className="text-[11px] font-medium text-slate-400">Weight</span>
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className="text-xl font-bold text-slate-800 tracking-tight">
-            {totalWeightKg.toLocaleString()}kg
+            {totalWeightKg.toLocaleString('en-US')}kg
           </span>
           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500 text-white shadow-sm">
             +33%
