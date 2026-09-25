@@ -19,6 +19,7 @@ coverage/
 .env.test.local
 .env.production
 .env.production.local
+.env.tunnel.local
 *.local
 
 # Logs

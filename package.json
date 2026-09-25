@@ -26,7 +26,10 @@
     "db:status": "prisma migrate status --schema=prisma/schema.prisma",
     "db:validate": "prisma validate --schema=prisma/schema.prisma",
     "build:web:worker": "npm run build:worker --workspace=apps/web",
-    "deploy:worker": "npm run deploy:worker --workspace=apps/web"
+    "deploy:worker": "npm run deploy:worker --workspace=apps/web",
+    "tunnel:api": "node scripts/tunnel-api.mjs",
+    "audit:production-config": "node scripts/audit-production-config.mjs",
+    "diagnose:deployment": "node scripts/diagnose-deployment.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

@@ -66,3 +66,4 @@ describe('Production URL Configuration & Security Validator', () => {
     ).toThrowError(/NEXT_PUBLIC_WS_URL cannot reference 'localhost'/);
   });
 });
+
