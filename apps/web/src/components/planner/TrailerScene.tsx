@@ -1,9 +1,21 @@
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
+import {
+  MousePointer2,
+  Move,
+  RotateCw,
+  Ruler,
+  EyeOff,
+  Maximize2,
+  RotateCcw,
+  Box,
+  Layers,
+  Truck,
+} from 'lucide-react';
 import { Package3D } from './Package3D';
 import { TruckCabin3D } from './TruckCabin3D';
 import { TrailerChassis3D } from './TrailerChassis3D';
@@ -15,6 +27,13 @@ interface TrailerSceneProps {
   loadPackages: LoadPackageDto[];
   sequenceItems?: any[];
   visibleStep?: number | null;
+  showGrid?: boolean;
+  showLabels?: boolean;
+  showDimensions?: boolean;
+  showCenterOfGravity?: boolean;
+  transparentWalls?: boolean;
+  lightingMode?: 'light' | 'dark' | 'studio';
+  onRotateSelected?: () => void;
 }
 
 const TRAILER_FLOOR_Y = 1.02; // meters above ground where wheels touch
@@ -32,8 +51,8 @@ function CenterOfGravityMarker({ floorY, trailerHeight }: { floorY: number; trai
   return (
     <group position={[x, y, z]}>
       <mesh>
-        <sphereGeometry args={[0.14, 24, 24]} />
-        <meshStandardMaterial color="#8b5cf6" roughness={0.2} emissive="#7c3aed" emissiveIntensity={0.6} />
+        <sphereGeometry args={[0.15, 24, 24]} />
+        <meshStandardMaterial color="#8b5cf6" roughness={0.2} emissive="#7c3aed" emissiveIntensity={0.8} />
       </mesh>
       {/* Target line down to trailer floor */}
       <lineSegments>
@@ -50,9 +69,25 @@ function CenterOfGravityMarker({ floorY, trailerHeight }: { floorY: number; trai
   );
 }
 
-export function TrailerScene({ vehicle, loadPackages, sequenceItems, visibleStep }: TrailerSceneProps) {
-  const { cameraPreset, placements, setSelectedLoadPackageId } = usePlannerStore();
+export function TrailerScene({
+  vehicle,
+  loadPackages,
+  sequenceItems,
+  visibleStep,
+  showGrid = true,
+  showLabels = true,
+  showDimensions = true,
+  showCenterOfGravity = true,
+  transparentWalls = true,
+  lightingMode = 'light',
+  onRotateSelected,
+}: TrailerSceneProps) {
+  const { placements, setSelectedLoadPackageId, selectedLoadPackageId } = usePlannerStore();
   const controlsRef = useRef<any>(null);
+
+  const [activeTool, setActiveTool] = useState<'select' | 'move' | 'rotate' | 'measure'>('select');
+  const [internalHideWalls, setInternalHideWalls] = useState(false);
+  const [currentCameraView, setCurrentCameraView] = useState<'3d' | 'top' | 'side' | 'front' | 'rear'>('3d');
 
   const L = vehicle.interiorLength / 1000;
   const W = vehicle.interiorWidth / 1000;
@@ -63,26 +98,34 @@ export function TrailerScene({ vehicle, loadPackages, sequenceItems, visibleStep
   const targetY = TRAILER_FLOOR_Y + H / 2;
   const targetZ = W / 2;
 
-  // Camera presets
-  useEffect(() => {
+  // Set Camera View Angles
+  const setCameraView = (view: '3d' | 'top' | 'side' | 'front' | 'rear') => {
+    setCurrentCameraView(view);
     if (!controlsRef.current) return;
     const controls = controlsRef.current;
+    const camera = controls.object;
 
-    if (cameraPreset === 'isometric') {
-      controls.object.position.set(targetX - 2, targetY + H * 0.9, W * 3.8);
-      controls.target.set(targetX, targetY, targetZ);
-    } else if (cameraPreset === 'top') {
-      controls.object.position.set(targetX, targetY + H * 3.6, targetZ);
-      controls.target.set(targetX, targetY, targetZ);
-    } else if (cameraPreset === 'side') {
-      controls.object.position.set(targetX, targetY, W * 3.6);
-      controls.target.set(targetX, targetY, targetZ);
-    } else if (cameraPreset === 'back') {
-      controls.object.position.set(L + 4.5, targetY, targetZ);
-      controls.target.set(targetX, targetY, targetZ);
+    if (view === '3d') {
+      camera.position.set(targetX + 6, targetY + H * 1.8, targetZ + W * 3.6);
+      controls.target.set(targetX + 2, targetY, targetZ);
+    } else if (view === 'top') {
+      camera.position.set(targetX + 2, targetY + H * 4.2, targetZ);
+      controls.target.set(targetX + 2, targetY, targetZ);
+    } else if (view === 'side') {
+      camera.position.set(targetX + 2, targetY, targetZ + W * 4.2);
+      controls.target.set(targetX + 2, targetY, targetZ);
+    } else if (view === 'front') {
+      camera.position.set(-8.5, targetY + H * 0.4, targetZ);
+      controls.target.set(targetX - 2, targetY, targetZ);
+    } else if (view === 'rear') {
+      camera.position.set(L + 7.5, targetY + H * 0.4, targetZ);
+      controls.target.set(targetX + 4, targetY, targetZ);
     }
+
+    camera.zoom = 1;
+    camera.updateProjectionMatrix();
     controls.update();
-  }, [cameraPreset, L, W, H, targetX, targetY, targetZ]);
+  };
 
   // Placed packages lookup
   const placedItems = useMemo(() => {
@@ -112,79 +155,248 @@ export function TrailerScene({ vehicle, loadPackages, sequenceItems, visibleStep
     return list;
   }, [loadPackages, placements, visibleStep, sequenceItems]);
 
-  const handleZoom = (delta: number) => {
-    if (!controlsRef.current) return;
-    const camera = controlsRef.current.object;
-    camera.zoom = Math.max(0.5, Math.min(2.5, camera.zoom + delta));
-    camera.updateProjectionMatrix();
-  };
-
-  const handleResetCamera = () => {
-    if (!controlsRef.current) return;
-    controlsRef.current.object.position.set(targetX - 1.5, targetY + H * 0.45, W * 3.6);
-    controlsRef.current.target.set(targetX, targetY, targetZ);
-    controlsRef.current.object.zoom = 1;
-    controlsRef.current.object.updateProjectionMatrix();
-    controlsRef.current.update();
-  };
+  const backgroundColor = useMemo(() => {
+    if (lightingMode === 'dark') return '#0f172a';
+    if (lightingMode === 'studio') return '#e2e8f0';
+    return '#f8fafc'; // light
+  }, [lightingMode]);
 
   return (
     <div
-      className="relative h-full w-full bg-[#f8fafc]"
+      className="relative h-full w-full select-none"
+      style={{ backgroundColor }}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) {
           setSelectedLoadPackageId(null);
         }
       }}
     >
+      {/* ── TOP FLOATING ACTION TOOLBAR (Matching Reference UI) ── */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/80 pointer-events-auto">
+        {/* Select Tool */}
+        <button
+          onClick={() => setActiveTool('select')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            activeTool === 'select'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <MousePointer2 className="h-3.5 w-3.5" />
+          <span>Select</span>
+        </button>
+
+        {/* Move Tool */}
+        <button
+          onClick={() => setActiveTool('move')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            activeTool === 'move'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Move className="h-3.5 w-3.5" />
+          <span>Move</span>
+        </button>
+
+        {/* Rotate Tool */}
+        <button
+          onClick={() => {
+            setActiveTool('rotate');
+            if (onRotateSelected) onRotateSelected();
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            activeTool === 'rotate'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <RotateCw className="h-3.5 w-3.5" />
+          <span>Rotate</span>
+        </button>
+
+        {/* Measure Tool */}
+        <button
+          onClick={() => setActiveTool('measure')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            activeTool === 'measure'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Ruler className="h-3.5 w-3.5" />
+          <span>Measure</span>
+        </button>
+
+        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+        {/* Hide Walls Toggle */}
+        <button
+          onClick={() => setInternalHideWalls(!internalHideWalls)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            internalHideWalls
+              ? 'bg-purple-100 text-purple-700'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+          title="Toggle Transparent / Cutaway Walls"
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+          <span>Hide Walls</span>
+        </button>
+
+        {/* Fit View */}
+        <button
+          onClick={() => setCameraView('3d')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+          title="Fit View"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+          <span>Fit View</span>
+        </button>
+
+        {/* Reset */}
+        <button
+          onClick={() => setCameraView('3d')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+          title="Reset Camera"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span>Reset</span>
+        </button>
+      </div>
+
+      {/* ── RIGHT FLOATING CAMERA PRESET CONTROLS (Matching Reference UI) ── */}
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/80 pointer-events-auto">
+        {/* 3D View */}
+        <button
+          onClick={() => setCameraView('3d')}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-semibold transition ${
+            currentCameraView === '3d'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Box className="h-4 w-4 mb-0.5" />
+          <span>3D View</span>
+        </button>
+
+        {/* Top View */}
+        <button
+          onClick={() => setCameraView('top')}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-semibold transition ${
+            currentCameraView === 'top'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Layers className="h-4 w-4 mb-0.5" />
+          <span>Top View</span>
+        </button>
+
+        {/* Side View */}
+        <button
+          onClick={() => setCameraView('side')}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-semibold transition ${
+            currentCameraView === 'side'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Truck className="h-4 w-4 mb-0.5" />
+          <span>Side View</span>
+        </button>
+
+        {/* Front View */}
+        <button
+          onClick={() => setCameraView('front')}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-semibold transition ${
+            currentCameraView === 'front'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span className="text-xs font-bold leading-none mb-0.5">FRONT</span>
+          <span>Front View</span>
+        </button>
+
+        {/* Rear View */}
+        <button
+          onClick={() => setCameraView('rear')}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-semibold transition ${
+            currentCameraView === 'rear'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span className="text-xs font-bold leading-none mb-0.5">REAR</span>
+          <span>Rear View</span>
+        </button>
+      </div>
+
+      {/* ── MAIN THREE.JS 3D CANVAS ── */}
       <Canvas shadows gl={{ antialias: true, alpha: true }}>
-        {/* Cinematic Side 3/4 Camera matching the reference screenshot */}
+        {/* Cinematic 3/4 Perspective Camera */}
         <PerspectiveCamera
           makeDefault
-          position={[targetX - 1.5, targetY + H * 0.45, W * 3.6]}
-          fov={38}
+          position={[targetX + 6, targetY + H * 1.8, targetZ + W * 3.6]}
+          fov={36}
         />
+
+        {/* OrbitControls: 360-degree rotation all around, clamped only at ground level */}
         <OrbitControls
           ref={controlsRef}
-          target={[targetX, targetY, targetZ]}
-          maxPolarAngle={Math.PI / 2 - 0.02} // Ground clamp
+          target={[targetX + 2, targetY, targetZ]}
+          maxPolarAngle={Math.PI / 2 - 0.02} // Ground clamp prevents going under floor
+          minPolarAngle={0.05} // Allows looking directly down from above
           minDistance={3}
-          maxDistance={40}
+          maxDistance={45}
           enableDamping
           dampingFactor={0.08}
         />
 
-        {/* Studio Lighting matching clean minimalist aesthetic */}
-        <ambientLight intensity={1.1} />
+        {/* Studio Lighting */}
+        <ambientLight intensity={lightingMode === 'dark' ? 0.4 : 1.1} />
         <directionalLight
-          position={[-6, 16, 12]}
-          intensity={1.3}
+          position={[-8, 18, 14]}
+          intensity={lightingMode === 'dark' ? 0.8 : 1.3}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
           shadow-camera-near={0.5}
-          shadow-camera-far={40}
-          shadow-camera-left={-15}
-          shadow-camera-right={20}
-          shadow-camera-top={15}
+          shadow-camera-far={45}
+          shadow-camera-left={-18}
+          shadow-camera-right={22}
+          shadow-camera-top={16}
           shadow-camera-bottom={-5}
         />
-        <directionalLight position={[12, 10, 8]} intensity={0.6} />
-        <directionalLight position={[targetX, -5, -10]} intensity={0.2} />
+        <directionalLight position={[14, 12, 8]} intensity={0.6} />
+        <directionalLight position={[targetX, -5, -12]} intensity={0.25} />
 
-        {/* ── 1. REALISTIC 3D CABIN (Tractor cab attached at X <= 0) ── */}
+        {/* Floor Grid (when enabled) */}
+        {showGrid && (
+          <gridHelper
+            args={[Math.max(L * 1.5, 30), 40, '#94a3b8', '#cbd5e1']}
+            position={[targetX + 2, 0.005, targetZ]}
+          />
+        )}
+
+        {/* ── 1. MODERN WHITE SEMI-TRUCK TRACTOR CAB (Attached at X <= 0) ── */}
         <TruckCabin3D trailerWidth={W} />
 
-        {/* ── 2. REALISTIC 3D TRAILER & CHASSIS (Cutaway Showcase) ── */}
-        <TrailerChassis3D vehicle={vehicle} floorY={TRAILER_FLOOR_Y} />
+        {/* ── 2. SEE-THROUGH CUTAWAY TRAILER CHASSIS & RUNNING GEAR ── */}
+        <TrailerChassis3D
+          vehicle={vehicle}
+          floorY={TRAILER_FLOOR_Y}
+          transparentWalls={transparentWalls || internalHideWalls}
+        />
 
-        {/* ── 3. CARGO PACKAGES (Offset by floor elevation) ── */}
+        {/* ── 3. REALISTIC MULTI-MATERIAL PACKAGES ── */}
         <group position={[0, TRAILER_FLOOR_Y, 0]}>
           {placedItems.map(({ pkg, placement }) => (
             <Package3D
               key={pkg.id}
               id={pkg.id}
-              name={pkg.packageDefinition?.name || 'Pallet'}
+              name={pkg.packageDefinition?.name || 'Package'}
               dims={{
                 length: pkg.packageDefinition?.length || 1000,
                 width: pkg.packageDefinition?.width || 1000,
@@ -195,58 +407,28 @@ export function TrailerScene({ vehicle, loadPackages, sequenceItems, visibleStep
               isFragile={pkg.packageDefinition?.isFragile}
               isHazardous={pkg.packageDefinition?.isHazardous}
               weightKg={pkg.packageDefinition?.weightKg || 500}
-              routingTag={pkg.packageDefinition?.sku || 'B2R'}
+              routingTag={pkg.packageDefinition?.sku || `PKG-${pkg.id.slice(0, 4)}`}
+              showLabels={showLabels}
             />
           ))}
         </group>
 
-        {/* Center of Gravity Marker */}
-        <CenterOfGravityMarker floorY={TRAILER_FLOOR_Y} trailerHeight={H} />
+        {/* Center of Gravity Marker (when enabled) */}
+        {showCenterOfGravity && (
+          <CenterOfGravityMarker floorY={TRAILER_FLOOR_Y} trailerHeight={H} />
+        )}
 
-        {/* Studio Contact Shadows under the whole vehicle */}
+        {/* Realistic Ground Contact Shadows */}
         <ContactShadows
-          position={[targetX, 0.01, targetZ]}
+          position={[targetX + 2, 0.01, targetZ]}
           opacity={0.6}
-          scale={L + 12}
+          scale={L + 14}
           blur={1.8}
           far={3}
           resolution={1024}
           color="#0f172a"
         />
       </Canvas>
-
-      {/* Floating 3D Navigation Controls on the Left (Matching Reference Image) */}
-      <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 select-none pointer-events-auto z-10">
-        {/* Zoom slider pill */}
-        <div className="flex flex-col items-center justify-between w-8 h-28 bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-slate-200/80 p-2">
-          <button
-            onClick={() => handleZoom(0.15)}
-            className="w-5 h-5 flex items-center justify-center text-slate-700 hover:text-purple-600 font-semibold text-sm transition-colors"
-            title="Zoom In"
-          >
-            +
-          </button>
-          <div className="w-1.5 h-12 bg-slate-200 rounded-full relative flex items-center justify-center">
-            <div className="w-3.5 h-3.5 bg-slate-800 rounded-full shadow-sm hover:scale-110 transition-transform cursor-pointer" />
-          </div>
-          <button
-            onClick={() => handleZoom(-0.15)}
-            className="w-5 h-5 flex items-center justify-center text-slate-700 hover:text-purple-600 font-semibold text-sm transition-colors"
-            title="Zoom Out"
-          >
-            -
-          </button>
-        </div>
-
-        {/* Reset Camera Pill */}
-        <button
-          onClick={handleResetCamera}
-          className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-purple-600 hover:border-purple-300 transition-all text-xs font-bold"
-          title="Reset to Reference View"
-        >
-          ✢
-        </button>
-      </div>
     </div>
   );
 }

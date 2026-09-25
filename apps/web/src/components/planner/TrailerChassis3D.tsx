@@ -17,14 +17,19 @@ function TrailerWheel({ position, isDual = true }: WheelProps) {
         <cylinderGeometry args={[0.52, 0.52, isDual ? 0.48 : 0.28, 32]} />
         <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
       </mesh>
-      {/* Chrome / Silver Rim */}
+      {/* Silver Outer Rim */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.34, 0.34, isDual ? 0.49 : 0.29, 24]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.8} />
       </mesh>
+      {/* Lug Nut Ring */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.22, 0.22, isDual ? 0.5 : 0.3, 16]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.6} />
+      </mesh>
       {/* Hub Cap */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.16, 0.16, isDual ? 0.52 : 0.31, 16]} />
+        <cylinderGeometry args={[0.14, 0.14, isDual ? 0.52 : 0.32, 16]} />
         <meshStandardMaterial color="#1e293b" roughness={0.5} metalness={0.5} />
       </mesh>
     </group>
@@ -34,23 +39,29 @@ function TrailerWheel({ position, isDual = true }: WheelProps) {
 interface TrailerChassis3DProps {
   vehicle: VehicleDto;
   floorY?: number;
+  transparentWalls?: boolean;
 }
 
 /**
- * High-fidelity 3D Semi-Trailer Chassis & Structure matching the user's reference image:
- * - Sleek modern white front bulkhead, aerodynamic roof panel, rear pillar frame
- * - Realistic interior: off-white back wall with horizontal e-track cargo tie-down rails and floor guides
- * - Open cutaway showcase side for crisp cargo visibility
- * - Under-trailer dark chassis I-beams, landing gear legs, aerodynamic side skirts
+ * High-fidelity 3D Semi-Trailer Chassis & Structure matching the reference design:
+ * - See-through cutaway structure: roof and near side are open, far wall is transparent/cutaway
+ *   enabling clear visibility into the cargo area from ALL angles around the truck (front, back, left, right, top)
+ * - White structural corner posts, top perimeter roof rails, and floor decking
+ * - Under-trailer steel I-beams, landing gear, side protection ladder rails
  * - Rear tandem dual-wheel axles with mudguards and rear underrun safety bumper
+ * - Rear door frame with open rear doors
  */
-export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DProps) {
+export function TrailerChassis3D({
+  vehicle,
+  floorY = 1.02,
+  transparentWalls = true,
+}: TrailerChassis3DProps) {
   const L = vehicle.interiorLength / 1000;
   const W = vehicle.interiorWidth / 1000;
   const H = vehicle.interiorHeight / 1000;
   const Z_center = W / 2;
 
-  // Glossy clean white paint for trailer exterior panels
+  // Glossy clean white paint for trailer structural framing
   const exteriorWhite = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -72,26 +83,29 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
     []
   );
 
-  // Aerodynamic dark side skirt material
-  const skirtMaterial = useMemo(
+  // Silver metal for underrun guard rails
+  const silverGuardMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#0f172a',
-        roughness: 0.6,
-        metalness: 0.2,
+        color: '#e2e8f0',
+        roughness: 0.3,
+        metalness: 0.7,
       }),
     []
   );
 
-  // Interior light gray wall material
-  const interiorWallMaterial = useMemo(
+  // Far wall material: semi-transparent when transparentWalls is on
+  const farWallMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: '#f8fafc',
         roughness: 0.85,
         metalness: 0.05,
+        transparent: transparentWalls,
+        opacity: transparentWalls ? 0.35 : 0.95,
+        side: THREE.DoubleSide,
       }),
-    []
+    [transparentWalls]
   );
 
   // Aluminum e-track rail material
@@ -101,8 +115,10 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
         color: '#94a3b8',
         roughness: 0.3,
         metalness: 0.8,
+        transparent: transparentWalls,
+        opacity: transparentWalls ? 0.6 : 1.0,
       }),
-    []
+    [transparentWalls]
   );
 
   // Rear axle positions calculated from length
@@ -140,7 +156,6 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
         <mesh position={[0, (floorY - 0.1) / 2, Z_center - 0.85]} material={chassisMaterial} castShadow>
           <boxGeometry args={[0.14, floorY - 0.1, 0.14]} />
         </mesh>
-        {/* Left Foot Pad */}
         <mesh position={[0, 0.04, Z_center - 0.85]} material={chassisMaterial}>
           <boxGeometry args={[0.26, 0.06, 0.26]} />
         </mesh>
@@ -149,7 +164,6 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
         <mesh position={[0, (floorY - 0.1) / 2, Z_center + 0.85]} material={chassisMaterial} castShadow>
           <boxGeometry args={[0.14, floorY - 0.1, 0.14]} />
         </mesh>
-        {/* Right Foot Pad */}
         <mesh position={[0, 0.04, Z_center + 0.85]} material={chassisMaterial}>
           <boxGeometry args={[0.26, 0.06, 0.26]} />
         </mesh>
@@ -160,23 +174,44 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
         </mesh>
       </group>
 
-      {/* Aerodynamic Lower Side Skirts (Matching reference image dark under-panel) */}
+      {/* Side Protection Underrun Ladder Guards (Matching reference image silver rails) */}
       {L > 6 && (
         <group>
-          {/* Near Side Skirt (Facing camera at Z_center + W/2 - 0.05) */}
-          <mesh
-            position={[(2.8 + axle1_X - 0.4) / 2, 0.52, Z_center + W / 2 - 0.06]}
-            material={skirtMaterial}
-          >
-            <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.5, 0.04]} />
-          </mesh>
-          {/* Far Side Skirt */}
-          <mesh
-            position={[(2.8 + axle1_X - 0.4) / 2, 0.52, Z_center - W / 2 + 0.06]}
-            material={skirtMaterial}
-          >
-            <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.5, 0.04]} />
-          </mesh>
+          {/* Near Side Guard (Facing camera at Z_center + W/2 - 0.06) */}
+          <group position={[(2.8 + axle1_X - 0.4) / 2, 0.52, Z_center + W / 2 - 0.06]}>
+            {/* Top Bar */}
+            <mesh position={[0, 0.16, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+            {/* Middle Bar */}
+            <mesh position={[0, 0, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+            {/* Bottom Bar */}
+            <mesh position={[0, -0.16, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+            {/* Vertical Supports */}
+            <mesh position={[-(axle1_X - 0.4 - 2.8) * 0.35, 0, 0]} material={chassisMaterial}>
+              <boxGeometry args={[0.06, 0.42, 0.03]} />
+            </mesh>
+            <mesh position={[(axle1_X - 0.4 - 2.8) * 0.35, 0, 0]} material={chassisMaterial}>
+              <boxGeometry args={[0.06, 0.42, 0.03]} />
+            </mesh>
+          </group>
+
+          {/* Far Side Guard */}
+          <group position={[(2.8 + axle1_X - 0.4) / 2, 0.52, Z_center - W / 2 + 0.06]}>
+            <mesh position={[0, 0.16, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+            <mesh position={[0, 0, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+            <mesh position={[0, -0.16, 0]} material={silverGuardMaterial}>
+              <boxGeometry args={[axle1_X - 0.4 - 2.8, 0.06, 0.04]} />
+            </mesh>
+          </group>
         </group>
       )}
 
@@ -195,39 +230,38 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
         <cylinderGeometry args={[0.07, 0.07, W - 0.4, 16]} />
       </mesh>
 
-      {/* Rear Wheel Mudguards / Fenders */}
-      <mesh position={[(axle1_X + axle2_X) / 2, 1.0, Z_center + W / 2 - 0.3]} material={chassisMaterial}>
+      {/* Rear Wheel Mudguards / Curved Fenders */}
+      <mesh position={[(axle1_X + axle2_X) / 2, 0.98, Z_center + W / 2 - 0.3]} material={chassisMaterial}>
         <boxGeometry args={[axle2_X - axle1_X + 1.25, 0.04, 0.55]} />
       </mesh>
-      <mesh position={[(axle1_X + axle2_X) / 2, 1.0, Z_center - W / 2 + 0.3]} material={chassisMaterial}>
+      <mesh position={[(axle1_X + axle2_X) / 2, 0.98, Z_center - W / 2 + 0.3]} material={chassisMaterial}>
         <boxGeometry args={[axle2_X - axle1_X + 1.25, 0.04, 0.55]} />
       </mesh>
 
-      {/* Rear Rubber Mudflaps */}
-      <mesh position={[axle2_X + 0.72, 0.48, Z_center + W / 2 - 0.32]} material={skirtMaterial}>
+      {/* Rear Mudflaps with Logo Print */}
+      <mesh position={[axle2_X + 0.72, 0.48, Z_center + W / 2 - 0.32]} material={chassisMaterial}>
         <boxGeometry args={[0.02, 0.55, 0.5]} />
       </mesh>
-      <mesh position={[axle2_X + 0.72, 0.48, Z_center - W / 2 + 0.32]} material={skirtMaterial}>
+      <mesh position={[axle2_X + 0.72, 0.48, Z_center - W / 2 + 0.32]} material={chassisMaterial}>
         <boxGeometry args={[0.02, 0.55, 0.5]} />
       </mesh>
 
-      {/* Rear Underrun Protection Bumper Bar with Tail Lights */}
+      {/* Rear Underrun Protection Bumper Bar with Tail Light Clusters */}
       <group position={[L + 0.05, 0.48, Z_center]}>
-        {/* Main Bumper Bar */}
         <mesh material={chassisMaterial} castShadow>
           <boxGeometry args={[0.1, 0.14, W + 0.05]} />
         </mesh>
-        {/* Left Brake Lights */}
+        {/* Left Brake / Tail Lights */}
         <mesh position={[0.06, 0, -W / 2 + 0.25]}>
           <boxGeometry args={[0.02, 0.08, 0.3]} />
-          <meshStandardMaterial color="#dc2626" emissive="#ef4444" emissiveIntensity={0.6} />
+          <meshStandardMaterial color="#dc2626" emissive="#ef4444" emissiveIntensity={0.8} />
         </mesh>
-        {/* Right Brake Lights */}
+        {/* Right Brake / Tail Lights */}
         <mesh position={[0.06, 0, W / 2 - 0.25]}>
           <boxGeometry args={[0.02, 0.08, 0.3]} />
-          <meshStandardMaterial color="#dc2626" emissive="#ef4444" emissiveIntensity={0.6} />
+          <meshStandardMaterial color="#dc2626" emissive="#ef4444" emissiveIntensity={0.8} />
         </mesh>
-        {/* License Plate / Center Warning Strip */}
+        {/* Amber Indicators & Center Warning Plate */}
         <mesh position={[0.06, 0, 0]}>
           <boxGeometry args={[0.01, 0.07, 0.35]} />
           <meshStandardMaterial color="#f8fafc" roughness={0.5} />
@@ -235,69 +269,93 @@ export function TrailerChassis3D({ vehicle, floorY = 1.02 }: TrailerChassis3DPro
       </group>
 
       {/* ══════════════════════════════════════════════════════════
-          2. TRAILER BODY & ENCLOSURE (Offset by floorY)
+          2. TRAILER BODY & CUTAWAY SHOWCASE ENCLOSURE
+          (Offset by floorY — viewable through all places other than bottom)
           ══════════════════════════════════════════════════════════ */}
       <group position={[0, floorY, 0]}>
-        {/* Heavy-Duty Floor Deck */}
+        {/* Solid Wooden / Aluminum Trailer Floor Deck */}
         <mesh position={[L / 2, -0.02, Z_center]} receiveShadow>
           <boxGeometry args={[L, 0.04, W]} />
-          <meshStandardMaterial color="#e2e8f0" roughness={0.8} metalness={0.1} />
+          <meshStandardMaterial color="#334155" roughness={0.7} metalness={0.2} />
         </mesh>
 
-        {/* Floor Surface Anti-slip Stripes */}
+        {/* Floor Surface Anti-slip Deck Planks */}
         <mesh position={[L / 2, 0.002, Z_center]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[L - 0.1, W - 0.1]} />
-          <meshStandardMaterial color="#f1f5f9" roughness={0.9} />
+          <planeGeometry args={[L - 0.08, W - 0.08]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.8} metalness={0.1} />
         </mesh>
 
         {/* Front Bulkhead Wall (Solid White, facing cab) */}
         <mesh position={[0.04, H / 2, Z_center]} material={exteriorWhite} castShadow>
           <boxGeometry args={[0.08, H, W]} />
         </mesh>
-        {/* Front Bulkhead Aerodynamic Top Radius */}
-        <mesh position={[0.1, H - 0.05, Z_center]} material={exteriorWhite}>
-          <boxGeometry args={[0.2, 0.1, W]} />
+
+        {/* Front Bulkhead Aerodynamic Nose Corner Posts */}
+        <mesh position={[0.04, H / 2, 0.04]} material={exteriorWhite}>
+          <boxGeometry args={[0.09, H, 0.09]} />
+        </mesh>
+        <mesh position={[0.04, H / 2, W - 0.04]} material={exteriorWhite}>
+          <boxGeometry args={[0.09, H, 0.09]} />
         </mesh>
 
-        {/* Roof Panel (Solid White Insulated Composite) */}
-        <mesh position={[L / 2, H + 0.03, Z_center]} material={exteriorWhite} castShadow>
-          <boxGeometry args={[L + 0.08, 0.06, W + 0.06]} />
-        </mesh>
-
-        {/* Interior Back Wall (Z = 0, Behind Cargo) */}
-        <mesh position={[L / 2, H / 2, 0.02]} material={interiorWallMaterial}>
+        {/* ── CUTAWAY / TRANSPARENT FAR WALL (Z = 0) ── */}
+        <mesh position={[L / 2, H / 2, 0.02]} material={farWallMaterial}>
           <boxGeometry args={[L, H, 0.04]} />
         </mesh>
 
-        {/* E-Track Horizontal Tie-Down Aluminum Rails on Back Wall */}
+        {/* E-Track Horizontal Tie-Down Aluminum Rails on Far Wall */}
         <mesh position={[L / 2, H * 0.3, 0.045]} material={aluminumRailMaterial}>
           <boxGeometry args={[L - 0.2, 0.08, 0.015]} />
         </mesh>
-        <mesh position={[L / 2, H * 0.6, 0.045]} material={aluminumRailMaterial}>
+        <mesh position={[L / 2, H * 0.65, 0.045]} material={aluminumRailMaterial}>
           <boxGeometry args={[L - 0.2, 0.08, 0.015]} />
         </mesh>
 
-        {/* Rear Door Frame Vertical Pillars */}
-        <mesh position={[L - 0.04, H / 2, 0.05]} material={exteriorWhite}>
-          <boxGeometry args={[0.08, H, 0.1]} />
+        {/* ── TOP PERIMETER ROOF RAILS (Framing the Open Roof) ── */}
+        {/* Far Top Rail */}
+        <mesh position={[L / 2, H - 0.02, 0.03]} material={exteriorWhite}>
+          <boxGeometry args={[L, 0.06, 0.06]} />
         </mesh>
-        <mesh position={[L - 0.04, H / 2, W - 0.05]} material={exteriorWhite}>
-          <boxGeometry args={[0.08, H, 0.1]} />
+        {/* Near Top Rail */}
+        <mesh position={[L / 2, H - 0.02, W - 0.03]} material={exteriorWhite}>
+          <boxGeometry args={[L, 0.06, 0.06]} />
         </mesh>
-        {/* Rear Door Top Lintel */}
-        <mesh position={[L - 0.04, H - 0.05, Z_center]} material={exteriorWhite}>
-          <boxGeometry args={[0.08, 0.1, W]} />
+        {/* Front Top Cross Rail */}
+        <mesh position={[0.04, H - 0.02, Z_center]} material={exteriorWhite}>
+          <boxGeometry args={[0.08, 0.06, W]} />
+        </mesh>
+        {/* Rear Top Door Lintel */}
+        <mesh position={[L - 0.04, H - 0.02, Z_center]} material={exteriorWhite}>
+          <boxGeometry args={[0.08, 0.08, W]} />
         </mesh>
 
-        {/* Showcase Cutaway Side Border Rails (Clean Architectural Framing) */}
-        {/* Bottom Rail along Cutaway Edge */}
+        {/* ── NEAR SIDE CUTAWAY FRAMING (Facing Camera) ── */}
+        {/* Bottom Sill Rail along Near Edge */}
         <mesh position={[L / 2, 0.03, W - 0.02]} material={exteriorWhite}>
           <boxGeometry args={[L, 0.06, 0.04]} />
         </mesh>
-        {/* Top Rail along Cutaway Edge */}
-        <mesh position={[L / 2, H - 0.02, W - 0.02]} material={exteriorWhite}>
-          <boxGeometry args={[L, 0.04, 0.04]} />
+
+        {/* ── REAR DOOR FRAME & OPEN REAR DOORS ── */}
+        {/* Left Rear Pillar */}
+        <mesh position={[L - 0.04, H / 2, 0.05]} material={exteriorWhite}>
+          <boxGeometry args={[0.08, H, 0.1]} />
         </mesh>
+        {/* Right Rear Pillar */}
+        <mesh position={[L - 0.04, H / 2, W - 0.05]} material={exteriorWhite}>
+          <boxGeometry args={[0.08, H, 0.1]} />
+        </mesh>
+
+        {/* Open Right Rear Door (Swung open ~70 degrees outwards) */}
+        <group position={[L - 0.02, H / 2, W - 0.05]} rotation={[0, -0.65, 0]}>
+          <mesh position={[0.04, 0, (W / 2) * 0.45]} material={exteriorWhite}>
+            <boxGeometry args={[0.05, H * 0.95, W * 0.48]} />
+          </mesh>
+          {/* Door Red Reflective Marker */}
+          <mesh position={[0.07, -H * 0.35, (W / 2) * 0.45]}>
+            <boxGeometry args={[0.01, 0.08, W * 0.42]} />
+            <meshStandardMaterial color="#dc2626" emissive="#ef4444" emissiveIntensity={0.6} />
+          </mesh>
+        </group>
       </group>
     </group>
   );

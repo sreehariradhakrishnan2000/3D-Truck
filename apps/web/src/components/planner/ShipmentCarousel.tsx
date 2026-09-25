@@ -75,3 +75,4 @@ export function ShipmentCarousel({ currentLoad }: ShipmentCarouselProps) {
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 import { usePlannerStore } from '@/store/plannerStore';
@@ -17,14 +17,75 @@ interface Package3DProps {
   isHazardous?: boolean;
   weightKg: number;
   routingTag?: string;
+  showLabels?: boolean;
 }
 
 /**
- * Photorealistic 3D Cargo Carton matching the reference design:
- * - Off-white clean cardboard finish with subtle bevel edge
- * - Printed weight (e.g. "500 kg") and routing tag (e.g. "B2R", "2-NYK LDN")
- * - When selected: Vivid purple border (#7c3aed) + central glowing purple badge/dot with white core
- * - When colliding: Red warning state
+ * 3D Transform Axis Gizmo rendered directly on the selected package matching the reference design:
+ * - Red Arrow pointing along +X (Trailer length)
+ * - Green Arrow pointing along +Y (Elevation / Up)
+ * - Blue Arrow pointing along +Z (Trailer width / Side)
+ * - Center origin sphere with axis handles
+ */
+function TransformAxisGizmo({ size = 0.5 }: { size?: number }) {
+  const arrowLength = Math.max(0.35, size);
+  const headLength = arrowLength * 0.28;
+  const headWidth = arrowLength * 0.16;
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Central Origin Sphere */}
+      <mesh>
+        <sphereGeometry args={[0.04, 16, 16]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+
+      {/* Red X Axis (Forward/Length) */}
+      <group>
+        <mesh position={[arrowLength / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <cylinderGeometry args={[0.015, 0.015, arrowLength, 12]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+        <mesh position={[arrowLength + headLength / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[headWidth, headLength, 16]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+      </group>
+
+      {/* Green Y Axis (Upward/Elevation) */}
+      <group>
+        <mesh position={[0, arrowLength / 2, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, arrowLength, 12]} />
+          <meshBasicMaterial color="#22c55e" />
+        </mesh>
+        <mesh position={[0, arrowLength + headLength / 2, 0]}>
+          <coneGeometry args={[headWidth, headLength, 16]} />
+          <meshBasicMaterial color="#22c55e" />
+        </mesh>
+      </group>
+
+      {/* Blue Z Axis (Sideways/Width) */}
+      <group>
+        <mesh position={[0, 0, arrowLength / 2]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, arrowLength, 12]} />
+          <meshBasicMaterial color="#3b82f6" />
+        </mesh>
+        <mesh position={[0, 0, arrowLength + headLength / 2]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[headWidth, headLength, 16]} />
+          <meshBasicMaterial color="#3b82f6" />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/**
+ * Photorealistic Cargo Packages matching the reference design:
+ * - Varied package materials: Kraft cardboard brown, industrial blue wrapped, clean white corrugated
+ * - Wooden pallet base for floor-level cargo
+ * - Packaging tape and shipping labels
+ * - Selected state: semi-transparent glowing blue mesh with crisp white/cyan wireframe
+ *   and interactive 3D RGB Transform Axis Gizmo (Red X, Green Y, Blue Z)
  */
 export function Package3D({
   id,
@@ -36,6 +97,7 @@ export function Package3D({
   isHazardous,
   weightKg,
   routingTag,
+  showLabels = true,
 }: Package3DProps) {
   const {
     selectedLoadPackageId,
@@ -62,31 +124,79 @@ export function Package3D({
   const posY = (position.z + effective.height / 2) / 1000;
   const posZ = (position.y + effective.width / 2) / 1000;
 
-  // Clean carton styling matching reference image
+  // Has wooden pallet underneath if on floor (Z ≈ 0)
+  const isOnFloor = position.z <= 10;
+
+  // Determine realistic material appearance based on package name / ID
+  const packageStyle = useMemo(() => {
+    // Generate deterministic hash from id
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff;
+    const variant = Math.abs(hash) % 3;
+
+    if (variant === 0) {
+      // Warm Kraft Cardboard
+      return {
+        type: 'cardboard',
+        color: '#ca8a04',
+        roughness: 0.85,
+        metalness: 0.05,
+        tapeColor: '#a16207',
+      };
+    } else if (variant === 1) {
+      // Industrial Blue Shrink-Wrap
+      return {
+        type: 'blue-wrapped',
+        color: '#2563eb',
+        roughness: 0.35,
+        metalness: 0.25,
+        tapeColor: '#1d4ed8',
+      };
+    } else {
+      // Clean White / Light-Grey Carton
+      return {
+        type: 'white-carton',
+        color: '#f1f5f9',
+        roughness: 0.7,
+        metalness: 0.05,
+        tapeColor: '#cbd5e1',
+      };
+    }
+  }, [id]);
+
   const boxColor = useMemo(() => {
-    if (isColliding) return '#fee2e2'; // Soft red
-    if (isSelected) return '#f5f3ff'; // Subtle purple tint
-    if (isHovered) return '#f8fafc';
-    return '#f1f5f9'; // Clean off-white cardboard
-  }, [isColliding, isSelected, isHovered]);
+    if (isColliding) return '#ef4444';
+    if (isSelected) return '#3b82f6'; // Semi-transparent blue highlight
+    if (isHovered) return '#60a5fa';
+    return packageStyle.color;
+  }, [isColliding, isSelected, isHovered, packageStyle.color]);
 
   const borderColor = useMemo(() => {
     if (isColliding) return '#dc2626';
-    if (isSelected) return '#7c3aed'; // Vivid Purple matching reference
-    if (isHovered) return '#6366f1';
-    return '#cbd5e1'; // Subtle slate border
+    if (isSelected) return '#ffffff'; // Crisp white wireframe
+    if (isHovered) return '#93c5fd';
+    return '#475569';
   }, [isColliding, isSelected, isHovered]);
-
-  // Format weight and routing text
-  const weightText = `${Math.round(weightKg || 500)} kg`;
-  const tagText = routingTag || (name.length > 9 ? name.slice(0, 9) : name || 'B2R');
-
-  // Text font size scaled by box dimensions
-  const fontSize = Math.min(0.14, Math.min(w, h) * 0.16);
 
   return (
     <group position={[posX, posY, posZ]}>
-      {/* Main Solid Box */}
+      {/* ── WOODEN PALLET BASE (Underneath cargo resting on floor) ── */}
+      {isOnFloor && (
+        <group position={[0, -h / 2 + 0.06, 0]}>
+          {/* Main Pallet Block Base */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[w * 0.96, 0.12, d * 0.96]} />
+            <meshStandardMaterial color="#d97706" roughness={0.9} />
+          </mesh>
+          {/* Slat Lines */}
+          <mesh position={[0, 0.061, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[w * 0.94, d * 0.94]} />
+            <meshStandardMaterial color="#b45309" roughness={0.8} />
+          </mesh>
+        </group>
+      )}
+
+      {/* ── MAIN SOLID / TRANSLUCENT CARGO BOX ── */}
       <mesh
         onClick={(e) => {
           e.stopPropagation();
@@ -103,100 +213,89 @@ export function Package3D({
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial
           color={boxColor}
-          roughness={0.7}
-          metalness={0.05}
+          roughness={packageStyle.roughness}
+          metalness={packageStyle.metalness}
+          transparent={isSelected}
+          opacity={isSelected ? 0.65 : 1.0}
         />
       </mesh>
 
-      {/* Crisp Perimeter Border */}
+      {/* ── CRISP WIREFRAME EDGES ── */}
       <lineSegments>
         <edgesGeometry args={[new THREE.BoxGeometry(w, h, d)]} />
         <lineBasicMaterial
           color={borderColor}
-          linewidth={isSelected ? 3 : 1}
+          linewidth={isSelected ? 2.5 : 1}
         />
       </lineSegments>
 
-      {/* ── FRONT FACE LABELS (Facing +Z towards open trailer cutaway) ── */}
-      {w > 0.4 && h > 0.3 && (
+      {/* ── PACKAGING TAPE SEAMS (On Cardboard & White Cartons) ── */}
+      {!isSelected && packageStyle.type !== 'blue-wrapped' && (
+        <mesh position={[0, h / 2 + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[w * 0.98, d * 0.12]} />
+          <meshStandardMaterial color={packageStyle.tapeColor} roughness={0.6} />
+        </mesh>
+      )}
+
+      {/* ── PRINTED LABELS & SHIPPING BARCODES ── */}
+      {showLabels && !isSelected && w > 0.4 && h > 0.3 && (
         <group position={[0, 0, d / 2 + 0.002]}>
-          {/* Top Line: Routing Tag & Weight */}
+          {/* White Shipping Label Plate */}
+          <mesh position={[-w * 0.22, h * 0.15, 0]}>
+            <planeGeometry args={[Math.min(0.28, w * 0.4), Math.min(0.2, h * 0.35)]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} />
+          </mesh>
+
+          {/* Barcode Lines */}
+          <mesh position={[-w * 0.22, h * 0.12, 0.001]}>
+            <planeGeometry args={[Math.min(0.22, w * 0.32), 0.05]} />
+            <meshBasicMaterial color="#0f172a" />
+          </mesh>
+
+          {/* Text Code */}
           <Text
-            position={[-w * 0.28, h * 0.28, 0]}
-            fontSize={fontSize * 0.9}
-            color="#64748b"
+            position={[-w * 0.22, h * 0.22, 0.002]}
+            fontSize={0.06}
+            color="#0f172a"
             anchorX="center"
             anchorY="middle"
-            maxWidth={w * 0.45}
           >
-            {tagText}
+            {routingTag || 'PKG-1004'}
           </Text>
 
+          {/* Weight Stamp */}
           <Text
-            position={[w * 0.25, h * 0.28, 0]}
-            fontSize={fontSize}
-            color="#1e293b"
-            anchorX="center"
-            anchorY="middle"
-            maxWidth={w * 0.45}
+            position={[w * 0.22, -h * 0.2, 0.001]}
+            fontSize={0.08}
+            color={packageStyle.type === 'cardboard' ? '#78350f' : '#334155'}
             fontWeight="bold"
-          >
-            {weightText}
-          </Text>
-
-          {/* Subtitle / Location Code */}
-          <Text
-            position={[-w * 0.25, -h * 0.26, 0]}
-            fontSize={fontSize * 0.75}
-            color="#94a3b8"
             anchorX="center"
             anchorY="middle"
-            maxWidth={w * 0.45}
           >
-            2-NYK LDN
+            {`${Math.round(weightKg)} kg`}
           </Text>
-
-          {/* Center Subtle Cross / Icon for unselected items */}
-          {!isSelected && (
-            <Text
-              position={[0, 0, 0]}
-              fontSize={fontSize * 0.7}
-              color="#cbd5e1"
-              anchorX="center"
-              anchorY="middle"
-            >
-              +
-            </Text>
-          )}
-
-          {/* ── SELECTED CENTRAL PURPLE DOT MARKER (1:1 with reference image) ── */}
-          {isSelected && (
-            <group position={[0, 0, 0.003]}>
-              {/* Outer Glowing Purple Circle */}
-              <mesh>
-                <circleGeometry args={[Math.min(0.09, Math.min(w, h) * 0.14), 32]} />
-                <meshBasicMaterial color="#7c3aed" />
-              </mesh>
-              {/* Inner Crisp White Core Dot */}
-              <mesh position={[0, 0, 0.001]}>
-                <circleGeometry args={[Math.min(0.035, Math.min(w, h) * 0.055), 24]} />
-                <meshBasicMaterial color="#ffffff" />
-              </mesh>
-            </group>
-          )}
         </group>
       )}
 
-      {/* Fragile / Hazardous Indicator Ribbons */}
+      {/* ── 3D TRANSFORM AXIS GIZMO (Rendered on Selected Package) ── */}
+      {isSelected && (
+        <group position={[0, 0, 0]}>
+          <TransformAxisGizmo size={Math.min(w, Math.min(h, d)) * 0.65} />
+        </group>
+      )}
+
+      {/* Fragile Warning Tape */}
       {isFragile && (
         <mesh position={[0, h / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[w * 0.8, d * 0.2]} />
+          <planeGeometry args={[w * 0.8, d * 0.15]} />
           <meshBasicMaterial color="#f59e0b" />
         </mesh>
       )}
+
+      {/* Hazardous Material Warning Tape */}
       {isHazardous && (
         <mesh position={[0, h / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[w * 0.8, d * 0.2]} />
+          <planeGeometry args={[w * 0.8, d * 0.15]} />
           <meshBasicMaterial color="#ef4444" />
         </mesh>
       )}

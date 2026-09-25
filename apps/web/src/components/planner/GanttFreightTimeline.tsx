@@ -197,3 +197,4 @@ export function GanttFreightTimeline({ loadPackages }: GanttFreightTimelineProps
     </div>
   );
 }
+
