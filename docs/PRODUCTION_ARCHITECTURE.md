@@ -99,3 +99,4 @@ This document provides the canonical production architecture specification for *
 | **Authentication** | Cryptographic Argon2 password hashing + stateless JWT with rotating refresh tokens stored in `HttpOnly; Secure; SameSite=Lax` cookies. |
 | **HTTP Security Headers** | Helmet-applied headers: `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`. |
 | **CORS Policy** | Whitelist-based origin checking supporting custom domain apex and Cloudflare preview domains. |
+

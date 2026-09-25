@@ -79,23 +79,48 @@ To avoid duplicate or conflicting deployments:
 
 ## D. Exact Commands to Run Locally
 
+### 1. Monorepo Verification (from repository root)
 ```bash
-# 1. Install dependencies across all workspaces
+# Install dependencies across all workspaces
 npm install
 
-# 2. Generate Prisma Client for PostgreSQL
+# Generate Prisma Client for PostgreSQL
 npm run prisma:generate
 
-# 3. Run all package and service unit tests (31/31 tests)
+# Validate Prisma schema
+npm run db:validate
+
+# Run all package and service unit tests (31/31 tests passing)
 npm test --workspaces --if-present
 
-# 4. Run typecheck across the monorepo
+# Run typecheck across the monorepo
 npm run typecheck
 
-# 5. Build core packages
+# Run linter across all workspaces
+npm run lint --workspaces --if-present
+
+# Build API, Worker, and OpenNext Cloudflare Worker
 npm run build:api
 npm run build:worker
 npm run build:web:worker
+```
+
+### 2. Cloudflare Worker Verification (from apps/web directory)
+```bash
+cd apps/web
+
+# Install dependencies in the web workspace
+npm install
+
+# Build OpenNext Cloudflare Worker
+npx opennextjs-cloudflare build
+
+# Verify build outputs exist
+test -f .open-next/worker.js
+test -d .open-next/assets
+
+# Validate Wrangler deployment configuration
+npx wrangler deploy --dry-run
 ```
 
 ---
