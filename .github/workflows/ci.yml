@@ -47,6 +47,6 @@ jobs:
         run: npm run build --workspace=@cargoflow/web
         env:
           NODE_ENV: production
-          NEXT_PUBLIC_API_URL: https://api.cargoflow.com/api
-          NEXT_PUBLIC_WS_URL: https://api.cargoflow.com
+          NEXT_PUBLIC_API_URL: https://api.cargoflow-verified-ci.internal/api
+          NEXT_PUBLIC_WS_URL: https://api.cargoflow-verified-ci.internal
 

@@ -39,8 +39,7 @@ async function bootstrap() {
           return origin === allowed || origin.startsWith(allowed);
         }) ||
         origin.endsWith('.pages.dev') ||
-        origin.endsWith('.workers.dev') ||
-        origin.endsWith('.cargoflow.com');
+        origin.endsWith('.workers.dev');
 
       if (isAllowed) {
         return callback(null, true);

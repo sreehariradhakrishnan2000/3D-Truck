@@ -18,8 +18,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${JWT_SECRET}
-      WEB_URL: ${WEB_URL:-https://cargoflow.com}
-      CORS_ORIGIN: ${CORS_ORIGIN:-https://cargoflow.com,https://cargoflow-web.pages.dev}
+      WEB_URL: ${WEB_URL:-https://3d-truck.sreehariradhakrishnan2000.workers.dev}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://3d-truck.sreehariradhakrishnan2000.workers.dev}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
     ports:

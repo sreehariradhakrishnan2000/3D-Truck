@@ -23,7 +23,7 @@ interface AuthenticatedSocket extends Socket {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return callback(null, true);
       const isProduction = process.env.NODE_ENV === 'production';
-      const allowedOrigins = (process.env.CORS_ORIGIN || process.env.WEB_URL || (isProduction ? 'https://cargoflow.com' : 'http://localhost:3000'))
+      const allowedOrigins = (process.env.CORS_ORIGIN || process.env.WEB_URL || (isProduction ? 'https://3d-truck.sreehariradhakrishnan2000.workers.dev' : 'http://localhost:3000'))
         .split(',')
         .map((o) => o.trim())
         .filter(Boolean);
@@ -34,8 +34,7 @@ interface AuthenticatedSocket extends Socket {
           return origin === allowed || origin.startsWith(allowed);
         }) ||
         origin.endsWith('.pages.dev') ||
-        origin.endsWith('.workers.dev') ||
-        origin.endsWith('.cargoflow.com');
+        origin.endsWith('.workers.dev');
 
       if (isAllowed) {
         return callback(null, true);

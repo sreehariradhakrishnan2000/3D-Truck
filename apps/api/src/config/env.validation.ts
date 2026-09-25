@@ -55,11 +55,16 @@ export function validateEnvironment(): ValidatedEnvironment {
   let webUrl = process.env.WEB_URL;
   if (isProduction) {
     if (!webUrl) {
-      webUrl = 'https://cargoflow.com';
+      webUrl = 'https://3d-truck.sreehariradhakrishnan2000.workers.dev';
     } else {
       if (webUrl.includes('localhost') || webUrl.includes('127.0.0.1')) {
         throw new Error(
           `CRITICAL PRODUCTION ERROR: WEB_URL cannot reference localhost in production. Found: ${webUrl}`
+        );
+      }
+      if (webUrl.includes('cargoflow.com') || webUrl.includes('yourdomain.com') || webUrl.includes('example.com')) {
+        throw new Error(
+          `CRITICAL PRODUCTION ERROR: WEB_URL cannot use placeholder or parked domain in production. Found: ${webUrl}`
         );
       }
       if (!webUrl.startsWith('https://')) {
