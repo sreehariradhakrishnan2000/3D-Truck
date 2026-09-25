@@ -13,6 +13,7 @@
     "dev:worker": "npm run dev --workspace=apps/worker",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "vitest run tests/",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma",

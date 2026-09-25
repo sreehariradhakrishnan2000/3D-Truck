@@ -158,7 +158,7 @@ export class PlacementService {
       });
 
       return { placement, newVersion: updatedLoad.version };
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     // Broadcast to real-time room
     this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PLACEMENT_UPDATED, result.placement);
@@ -205,7 +205,7 @@ export class PlacementService {
       });
 
       return { newVersion: updatedLoad.version };
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.PLACEMENT_REMOVED, { placementId });
     this.loadGateway.broadcastToLoad(loadId, WS_EVENTS.LOAD_UPDATED, { loadId, version: result.newVersion });

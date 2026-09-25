@@ -86,25 +86,40 @@ CargoFlow is a web application where logistics companies can:
 cargoflow/                          ← npm workspace root
 ├── apps/
 │   ├── api/                        ← NestJS backend (port 3001)
-│   ├── web/                        ← Next.js 14 frontend (port 3000)  [PHASE 2]
-│   └── worker/                     ← BullMQ job worker  [PHASE 3]
+│   ├── web/                        ← Next.js 14 frontend (port 3000)
+│   └── worker/                     ← BullMQ job worker
 │
 ├── packages/
 │   ├── shared-types/               ← TypeScript types, enums, DTOs, WS event names
 │   ├── geometry/                   ← 3D math: AABB, rotations, collision, CoG, volume
 │   ├── validation/                 ← Zod schemas + server-side load validator
-│   └── packing-engine/             ← Greedy extreme-point 3D bin packing algorithm
+│   ├── packing-engine/             ← Greedy extreme-point 3D bin packing algorithm
+│   └── ui/                         ← Reusable design system library (Button, Card, Badge, KpiCard)
 │
 ├── prisma/
 │   ├── schema.prisma               ← Single source of truth for DB schema
 │   ├── seed.ts                     ← Demo data seeder
 │   └── tsconfig.json               ← For ts-node seed execution
 │
-├── docker-compose.yml              ← PostgreSQL 16 + Redis 7
+├── docs/                           ← Complete technical architecture & deployment guides
+│   ├── ARCHITECTURE.md             ← System topology, 3D math & concurrency model
+│   ├── API.md                      ← REST endpoints & WebSocket events reference
+│   └── DEPLOYMENT.md               ← Production Docker, Cloud Run & ECS deployment
+│
+├── docker/                         ← Docker deployment configurations
+│   ├── init-db.sql                 ← PostgreSQL extensions initialization script
+│   └── nginx.conf                  ← Production reverse proxy configuration
+│
+├── tests/                          ← End-to-end automated integration tests
+│   └── platform-flow.spec.ts       ← Full multi-tenant SaaS lifecycle test suite
+│
+├── docker-compose.yml              ← Local dev: PostgreSQL 16 + Redis 7
+├── docker-compose.prod.yml         ← Production multi-container full stack orchestration
+├── .github/workflows/ci.yml        ← GitHub Actions CI pipeline
 ├── .env                            ← Local dev secrets (gitignored)
 ├── .env.example                    ← Template for env vars
 ├── package.json                    ← Workspace root
-└── README.md                       ← THIS FILE — source of truth
+└── README.md                       ← THIS FILE — single source of truth
 ```
 
 ### Package Dependency Graph
@@ -800,7 +815,8 @@ npm run dev:api          # Start NestJS API with hot reload
 npm run dev:web          # Start Next.js frontend (Phase 2)
 npm run dev:worker       # Start BullMQ worker (Phase 3)
 npm run build            # Build all workspaces
-npm run test             # Run all workspace tests
+npm run test             # Run all workspace unit tests
+npm run test:e2e         # Run end-to-end multi-tenant platform flow test suite
 npm run prisma:generate  # Generate Prisma client
 npm run prisma:migrate   # Run migrations (dev)
 npm run prisma:studio    # Open Prisma Studio
