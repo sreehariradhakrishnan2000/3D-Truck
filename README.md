@@ -634,6 +634,21 @@ npm run prisma:studio
 | Fine-Grained 3D Placement Controls | ✅ Done | 3D Nudge controls (X, Y, Z, snap to floor, rotation, unplace) in `CargoTray` |
 | CSV & JSON Data Export | ✅ Done | 1-click machine-readable CSV & JSON manifest downloads in `manifest/page.tsx` |
 
+### ✅ Phase 8 — High-Fidelity 3D Semi-Truck & Reference UI Design (COMPLETE)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| 3D Semi-Truck Tractor Cab | ✅ Done | `TruckCabin3D.tsx` high-gloss white aerodynamic cab, sleeper box, sloped hood, wraparound tinted windshield, side mirrors, dual tandem wheels with chrome rims, and fifth-wheel hitch coupling |
+| 3D Trailer Chassis & Cutaway Showcase | ✅ Done | `TrailerChassis3D.tsx` heavy-duty steel I-beam rails, landing gear legs, aerodynamic side skirts, rear tandem dual-wheel axles, mudguards, rear bumper with tail lights, and cutaway frame |
+| Interior Trailer Cargo Styling | ✅ Done | Off-white back wall with horizontal e-track aluminum cargo tie-down rails and floor guides |
+| Photorealistic Cargo Cartons | ✅ Done | `Package3D.tsx` crisp off-white finish, printed dynamic weight (e.g. `500 kg`), routing tags (`B2R`, `2-NYK LDN`), fragile/hazardous warning banners |
+| Reference Selection Indicator | ✅ Done | Exact 1:1 match with reference design: vivid purple border (`#7c3aed`) + central glowing purple badge/dot with white core |
+| Reference KPI Bar | ✅ Done | `ReferenceKpiPills.tsx` displaying Weight (`7,340kg +33%`), Pallets (`120 +15%`), and Alerts (`62 -22%`) |
+| Floating Glassmorphic Load Planning Card | ✅ Done | `LoadPlanningFloatingCard.tsx` with pallet item table, vehicle assignment, sequence numbers, quick filter, auto-pack, and clear plan |
+| Horizontal Shipment Carousel | ✅ Done | `ShipmentCarousel.tsx` with 5 shipment cards and stylized truck silhouettes matching the reference design |
+| Freight Units & Multi-Day Gantt Schedule | ✅ Done | `GanttFreightTimeline.tsx` with freight unit checkboxes, multi-day timeline, current-time vertical marker, and purple transit legs |
+| Studio Lighting & Camera Controls | ✅ Done | Soft directional lighting, `<ContactShadows />` ground plane shadow, side-3/4 cinematic camera, and floating zoom/reset controls |
+
 ---
 
 ## 12. Phase Roadmap
