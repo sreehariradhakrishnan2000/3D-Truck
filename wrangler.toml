@@ -1,0 +1,8 @@
+# CargoFlow Cloudflare Root Configuration
+name = "cargoflow"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "apps/web/.next"
+
+[vars]
+NODE_ENV = "production"

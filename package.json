@@ -19,7 +19,8 @@
     "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio --schema=prisma/schema.prisma",
-    "prisma:generate": "prisma generate --schema=prisma/schema.prisma"
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "deploy:cloudflare": "wrangler pages deploy apps/web/.next --project-name=cargoflow-web"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
