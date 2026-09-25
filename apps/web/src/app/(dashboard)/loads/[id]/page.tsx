@@ -247,6 +247,25 @@ export default function LoadPlannerPage() {
     removePlacementOptimistic(selectedLoadPackageId);
   };
 
+  // Handler: Fine-grained Nudge Selected Package in 3D
+  const handleNudgePackage = (pkgId: string, dx: number, dy: number, dz: number) => {
+    const current = placements.get(pkgId);
+    if (!current || !load?.vehicle) return;
+
+    pushSnapshot();
+    const newX = Math.max(0, Math.min(load.vehicle.interiorLength - 100, current.x + dx));
+    const newY = Math.max(0, Math.min(load.vehicle.interiorWidth - 100, current.y + dy));
+    const newZ = Math.max(0, Math.min(load.vehicle.interiorHeight - 100, current.z + dz));
+
+    placeMutation.mutate({
+      loadPackageId: pkgId,
+      x: newX,
+      y: newY,
+      z: newZ,
+      rotationIndex: current.rotationIndex,
+    });
+  };
+
   // Undo / Redo Handlers
   const handleUndo = useCallback(() => {
     const previous = undo();
@@ -323,6 +342,9 @@ export default function LoadPlannerPage() {
           addPackageMutation.mutate({ packageDefinitionId, quantity })
         }
         onPlacePackage={handleQuickPlace}
+        onNudgePackage={handleNudgePackage}
+        onRotatePackage={handleRotateSelected}
+        onRemovePlacement={handleRemoveSelected}
       />
 
       {/* Center 3D Viewport / 2D Fallback */}

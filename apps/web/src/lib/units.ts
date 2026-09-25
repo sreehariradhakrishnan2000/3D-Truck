@@ -47,3 +47,4 @@ export function formatVolume(mm3: number, system: UnitSystem = 'metric', precisi
   }
   return `${m3.toFixed(precision)} m³`;
 }
+

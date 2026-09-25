@@ -615,7 +615,9 @@ npm run prisma:studio
 | Production Dockerfiles | ✅ Done | Multi-stage Dockerfiles for `apps/api`, `apps/web`, and `apps/worker` |
 | Production Docker Compose | ✅ Done | `docker-compose.prod.yml` with healthchecks, environment configs, and networks |
 | GitHub Actions CI Pipeline | ✅ Done | `.github/workflows/ci.yml` with lint, test across workspaces, and parallel builds |
-| Complete Monorepo Test Coverage | ✅ Verified | 27/27 unit tests passing across all workspaces |
+| Full Stack API & Unit Tests | ✅ Verified | 31/31 unit & integration tests passing across all workspaces |
+| Fine-Grained 3D Placement Controls | ✅ Done | 3D Nudge controls (X, Y, Z, snap to floor, rotation, unplace) in `CargoTray` |
+| CSV & JSON Data Export | ✅ Done | 1-click machine-readable CSV & JSON manifest downloads in `manifest/page.tsx` |
 
 ---
 

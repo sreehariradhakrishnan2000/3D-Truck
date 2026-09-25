@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Box, Plus, Check, ArrowRight, X } from 'lucide-react';
+import { Box, Plus, Check, ArrowRight, X, RotateCw, Trash2 } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { formatDimension, formatWeight } from '@/lib/units';
@@ -12,6 +12,9 @@ interface CargoTrayProps {
   packageDefinitions: PackageDefinitionDto[];
   onAddPackage: (packageDefinitionId: string, quantity: number) => void;
   onPlacePackage: (loadPackageId: string) => void;
+  onNudgePackage?: (loadPackageId: string, dx: number, dy: number, dz: number) => void;
+  onRotatePackage?: (loadPackageId: string) => void;
+  onRemovePlacement?: (loadPackageId: string) => void;
 }
 
 export function CargoTray({
@@ -19,6 +22,9 @@ export function CargoTray({
   packageDefinitions,
   onAddPackage,
   onPlacePackage,
+  onNudgePackage,
+  onRotatePackage,
+  onRemovePlacement,
 }: CargoTrayProps) {
   const { unitSystem } = useSettingsStore();
   const {
@@ -38,6 +44,9 @@ export function CargoTray({
   const placedPackages = loadPackages.filter(
     (lp) => placements.has(lp.id) || (lp.placements && lp.placements.length > 0)
   );
+
+  const selectedPackage = loadPackages.find((lp) => lp.id === selectedLoadPackageId);
+  const selectedPlacement = selectedLoadPackageId ? placements.get(selectedLoadPackageId) : null;
 
   return (
     <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white flex flex-col h-full z-10">
@@ -137,6 +146,96 @@ export function CargoTray({
         </div>
       </div>
 
+      {/* Selected Item Inspector & Fine-grained 3D Positioning Controls */}
+      {selectedPackage && selectedPlacement && (
+        <div className="border-t border-slate-200 bg-slate-50/95 p-3.5 shadow-sm">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60">
+            <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">
+              Selected Item Controls
+            </span>
+            <button
+              onClick={() => setSelectedLoadPackageId(null)}
+              className="text-slate-400 hover:text-slate-600 transition"
+              title="Deselect"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="mt-2">
+            <p className="font-semibold text-xs text-slate-900 truncate">
+              {selectedPackage.packageDefinition?.name}
+            </p>
+            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+              <span>X: {Math.round(selectedPlacement.x)}</span>
+              <span>Y: {Math.round(selectedPlacement.y)}</span>
+              <span>Z: {Math.round(selectedPlacement.z)}</span>
+              <span className="text-blue-600 font-sans font-medium">Rot: #{selectedPlacement.rotationIndex}</span>
+            </div>
+          </div>
+
+          {/* Precision 3D Nudge Controls */}
+          <div className="mt-2.5 grid grid-cols-3 gap-1">
+            <button
+              onClick={() => onNudgePackage?.(selectedPackage.id, -100, 0, 0)}
+              className="rounded-lg border border-slate-200 bg-white py-1 px-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100 transition text-center"
+              title="Nudge towards front wall (-100mm)"
+            >
+              ← Front (X-)
+            </button>
+            <button
+              onClick={() => onNudgePackage?.(selectedPackage.id, 100, 0, 0)}
+              className="rounded-lg border border-slate-200 bg-white py-1 px-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100 transition text-center"
+              title="Nudge towards rear door (+100mm)"
+            >
+              Rear (X+) →
+            </button>
+            <button
+              onClick={() => onRotatePackage?.(selectedPackage.id)}
+              className="rounded-lg bg-blue-50 text-blue-600 py-1 px-1.5 text-[10px] font-semibold hover:bg-blue-100 transition flex items-center justify-center gap-1"
+              title="Rotate orientation"
+            >
+              <RotateCw className="h-3 w-3" />
+              <span>Rotate</span>
+            </button>
+
+            <button
+              onClick={() => onNudgePackage?.(selectedPackage.id, 0, -100, 0)}
+              className="rounded-lg border border-slate-200 bg-white py-1 px-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100 transition text-center"
+              title="Shift left (-100mm)"
+            >
+              ← Left (Y-)
+            </button>
+            <button
+              onClick={() => onNudgePackage?.(selectedPackage.id, 0, 100, 0)}
+              className="rounded-lg border border-slate-200 bg-white py-1 px-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100 transition text-center"
+              title="Shift right (+100mm)"
+            >
+              Right (Y+) →
+            </button>
+            <button
+              onClick={() => onNudgePackage?.(selectedPackage.id, 0, 0, -selectedPlacement.z)}
+              className="rounded-lg border border-slate-200 bg-white py-1 px-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100 transition text-center"
+              title="Drop down directly to trailer floor"
+            >
+              Snap Floor
+            </button>
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-200/60">
+            <span className="text-[10px] text-slate-400">Step: 100mm</span>
+            <button
+              onClick={() => onRemovePlacement?.(selectedPackage.id)}
+              className="flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 transition"
+              title="Remove from 3D trailer"
+            >
+              <Trash2 className="h-3 w-3" />
+              <span>Unplace Item</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal to add package */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -158,7 +257,7 @@ export function CargoTray({
                 >
                   {packageDefinitions.map((def) => (
                     <option key={def.id} value={def.id}>
-                      {def.name} ({formatWeight(def.weightKg)})
+                      {def.name} ({formatWeight(def.weightKg, unitSystem)})
                     </option>
                   ))}
                 </select>

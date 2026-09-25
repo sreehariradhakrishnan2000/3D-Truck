@@ -34,3 +34,4 @@ COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 COPY --from=builder /app/apps/worker/package.json ./apps/worker/package.json
 
 CMD ["node", "apps/worker/dist/index.js"]
+

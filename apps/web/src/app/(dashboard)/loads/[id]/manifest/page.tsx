@@ -42,13 +42,93 @@ export default function LoadManifestPrintPage() {
           <span>Back to Planner</span>
         </button>
 
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-apple-sm hover:bg-blue-700"
-        >
-          <Printer className="h-4 w-4" />
-          <span>Print Manifest Sheet</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const rows = [
+                ['Step', 'Item Name', 'Length(mm)', 'Width(mm)', 'Height(mm)', 'Weight(kg)', 'Coord_X', 'Coord_Y', 'Coord_Z', 'Fragile', 'Upright'],
+                ...sequence.map((item) => {
+                  const def = item.loadPackage?.packageDefinition;
+                  const pl = item.loadPackage?.placements?.[0];
+                  return [
+                    item.sequenceOrder,
+                    `"${def?.name || 'Cargo'}"`,
+                    def?.length || 0,
+                    def?.width || 0,
+                    def?.height || 0,
+                    def?.weightKg || 0,
+                    pl ? Math.round(pl.x) : 0,
+                    pl ? Math.round(pl.y) : 0,
+                    pl ? Math.round(pl.z) : 0,
+                    def?.isFragile ? 'YES' : 'NO',
+                    def?.requiresUprightOrientation ? 'YES' : 'NO',
+                  ];
+                }),
+              ];
+              const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((r) => r.join(',')).join('\n');
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement('a');
+              link.setAttribute('href', encodedUri);
+              link.setAttribute('download', `manifest-${load.loadNumber}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-apple-sm hover:bg-slate-50 transition"
+          >
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const exportData = {
+                loadNumber: load.loadNumber,
+                origin: load.origin,
+                destination: load.destination,
+                vehicle: v,
+                totalWeightKg: load.totalWeightKg,
+                volumeUtilizationPct: load.volumeUtilizationPct,
+                items: sequence.map((item) => ({
+                  step: item.sequenceOrder,
+                  name: item.loadPackage?.packageDefinition?.name,
+                  sku: item.loadPackage?.packageDefinition?.sku,
+                  dimensionsMm: {
+                    length: item.loadPackage?.packageDefinition?.length,
+                    width: item.loadPackage?.packageDefinition?.width,
+                    height: item.loadPackage?.packageDefinition?.height,
+                  },
+                  weightKg: item.loadPackage?.packageDefinition?.weightKg,
+                  coordinatesMm: item.loadPackage?.placements?.[0]
+                    ? {
+                        x: Math.round(item.loadPackage.placements[0].x),
+                        y: Math.round(item.loadPackage.placements[0].y),
+                        z: Math.round(item.loadPackage.placements[0].z),
+                      }
+                    : null,
+                })),
+              };
+              const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `manifest-${load.loadNumber}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-apple-sm hover:bg-slate-50 transition"
+          >
+            <span>Export JSON</span>
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-apple-sm hover:bg-blue-700 transition"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Print Manifest Sheet</span>
+          </button>
+        </div>
       </div>
 
       {/* Printable Sheet */}
