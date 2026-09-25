@@ -56,7 +56,8 @@ export async function middleware(request: NextRequest) {
     if (!backendOrigin) {
       return new NextResponse('Backend WebSocket origin not configured', { status: 503 });
     }
-    const targetUrl = new URL(`${pathname}${search}`, backendOrigin);
+    const targetPath = pathname === '/socket.io' ? '/socket.io/' : pathname;
+    const targetUrl = new URL(`${targetPath}${search}`, backendOrigin);
     const forwardHeaders = new Headers(request.headers);
     forwardHeaders.set('host', targetUrl.host);
     forwardHeaders.set('x-forwarded-host', request.nextUrl.host);
@@ -93,7 +94,8 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const targetUrl = new URL(`${pathname}${search}`, backendOrigin);
+    const targetPath = pathname === '/socket.io' ? '/socket.io/' : pathname;
+    const targetUrl = new URL(`${targetPath}${search}`, backendOrigin);
 
     const forwardHeaders = new Headers();
     request.headers.forEach((value, key) => {
