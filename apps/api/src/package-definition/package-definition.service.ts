@@ -35,7 +35,7 @@ export class PackageDefinitionService {
     const count = await this.prisma.packageDefinition.count({ where: { organizationId: user.orgId } });
     const packageNumber = `PKG-${String(count + 1).padStart(4, '0')}`;
     return this.prisma.packageDefinition.create({
-      data: { ...dto, organizationId: user.orgId, packageNumber },
+      data: { ...dto, organizationId: user.orgId, packageNumber } as any,
     });
   }
 

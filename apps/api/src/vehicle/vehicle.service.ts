@@ -24,7 +24,7 @@ export class VehicleService {
 
   async create(dto: CreateVehicleDto, user: JwtPayload) {
     return this.prisma.vehicle.create({
-      data: { ...dto, organizationId: user.orgId },
+      data: { ...dto, organizationId: user.orgId } as any,
     });
   }
 

@@ -62,7 +62,7 @@ export class LoadService {
         organizationId: user.orgId,
         createdById: user.sub,
         status: LoadStatus.DRAFT,
-      },
+      } as any,
       include: { vehicle: true },
     });
   }
