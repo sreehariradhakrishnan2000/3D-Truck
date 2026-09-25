@@ -49,69 +49,39 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  // 2. WebSocket & Socket.IO Proxy (/socket.io/*, /ws, or Upgrade: websocket)
+  // 2. WebSocket Upgrade Proxy
   const isWsUpgrade = request.headers.get('upgrade')?.toLowerCase() === 'websocket';
-  const isSocketIo = pathname.startsWith('/socket.io');
-  const isWsPath = pathname === '/ws' || pathname.startsWith('/ws/');
-
-  if (isWsUpgrade || isSocketIo || isWsPath) {
+  if (isWsUpgrade) {
     const backendOrigin = getBackendOrigin();
     if (!backendOrigin) {
-      return new NextResponse(
-        JSON.stringify({
-          statusCode: 503,
-          code: 'BACKEND_NOT_CONFIGURED',
-          message: 'Backend WebSocket origin is not configured in Cloudflare Worker. Set BACKEND_API_ORIGIN.',
-        }),
-        {
-          status: 503,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-          },
-        }
-      );
+      return new NextResponse('Backend WebSocket origin not configured', { status: 503 });
     }
-
     const targetUrl = new URL(`${pathname}${search}`, backendOrigin);
     const forwardHeaders = new Headers(request.headers);
     forwardHeaders.set('host', targetUrl.host);
     forwardHeaders.set('x-forwarded-host', request.nextUrl.host);
     forwardHeaders.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
 
-    try {
-      const response = await fetch(targetUrl.toString(), {
-        method: request.method,
-        headers: forwardHeaders,
-      });
-      return response;
-    } catch (err: any) {
-      return new NextResponse(
-        JSON.stringify({
-          statusCode: 502,
-          code: 'BAD_GATEWAY',
-          message: `Worker failed to connect to WebSocket backend at ${targetUrl.origin}: ${err?.message || 'Connection refused'}`,
-        }),
-        {
-          status: 502,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-          },
-        }
-      );
-    }
+    return fetch(targetUrl.toString(), {
+      method: request.method,
+      headers: forwardHeaders,
+    });
   }
 
-  // 3. API Proxy (/api/* or /api)
-  if (pathname.startsWith('/api/') || pathname === '/api') {
+  // 3. HTTP Proxy for /api/*, /socket.io/*, and /ws
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/socket.io') ||
+    pathname === '/ws' ||
+    pathname.startsWith('/ws/')
+  ) {
     const backendOrigin = getBackendOrigin();
     if (!backendOrigin) {
       return new NextResponse(
         JSON.stringify({
           statusCode: 503,
           code: 'BACKEND_NOT_CONFIGURED',
-          message: 'Backend API origin is not configured in Cloudflare Worker. Please configure BACKEND_API_ORIGIN in Worker environment variables.',
+          message: 'Backend origin is not configured in Cloudflare Worker. Please configure BACKEND_API_ORIGIN.',
         }),
         {
           status: 503,
@@ -125,11 +95,9 @@ export async function middleware(request: NextRequest) {
 
     const targetUrl = new URL(`${pathname}${search}`, backendOrigin);
 
-    // Forward headers
     const forwardHeaders = new Headers();
     request.headers.forEach((value, key) => {
       const lower = key.toLowerCase();
-      // Exclude hop-by-hop headers
       if (lower !== 'host' && lower !== 'connection') {
         forwardHeaders.set(key, value);
       }
@@ -150,7 +118,7 @@ export async function middleware(request: NextRequest) {
 
     if (hasBody) {
       init.body = request.body;
-      // @ts-expect-error duplex is required for streaming body in fetch
+      // @ts-expect-error duplex required for streaming body in fetch
       init.duplex = 'half';
     }
 
@@ -165,7 +133,7 @@ export async function middleware(request: NextRequest) {
         }
       });
 
-      // Preserve all Set-Cookie headers
+      // Preserve Set-Cookie
       if (typeof (backendResponse.headers as any).getSetCookie === 'function') {
         const cookies = (backendResponse.headers as any).getSetCookie();
         if (cookies && cookies.length > 0) {
@@ -190,7 +158,7 @@ export async function middleware(request: NextRequest) {
         JSON.stringify({
           statusCode: 502,
           code: 'BAD_GATEWAY',
-          message: `Worker failed to reach backend API at ${targetUrl.origin}: ${err?.message || 'Connection failed'}`,
+          message: `Worker failed to reach backend at ${targetUrl.origin}: ${err?.message || 'Connection failed'}`,
         }),
         {
           status: 502,
