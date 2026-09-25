@@ -45,7 +45,8 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies[REFRESH_COOKIE];
     if (refreshToken) await this.authService.logout(refreshToken);
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+    res.clearCookie(REFRESH_COOKIE, { path: '/api/auth', domain });
   }
 
   @Get('me')
@@ -55,10 +56,15 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+    const sameSite = (process.env.COOKIE_SAMESITE as 'lax' | 'none' | 'strict') || (isProduction && !domain ? 'none' : 'lax');
+
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite,
+      domain,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/api/auth',
     });

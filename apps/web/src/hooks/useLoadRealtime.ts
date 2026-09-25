@@ -31,7 +31,11 @@ export function useLoadRealtime(loadId: string | null) {
     const socket = io(`${WS_URL}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 15000,
     });
 
     socketRef.current = socket;

@@ -1,12 +1,38 @@
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Build Artifacts
 dist/
-.env
-.env.local
-*.local
 .next/
+out/
+.open-next/
+.wrangler/
 coverage/
-*.log
-.DS_Store
-prisma/*.db
 *.tsbuildinfo
 
+# Environment & Secrets (Never commit secrets!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production
+.env.production.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Database files
+prisma/*.db
+prisma/*.db-journal

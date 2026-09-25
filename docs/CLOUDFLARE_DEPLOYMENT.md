@@ -1,175 +1,227 @@
 # CargoFlow — Cloudflare Production Deployment Guide
 
-This guide details how to deploy **CargoFlow** into production using **Cloudflare Pages**, **Cloudflare Zero Trust Tunnels**, and **Neon PostgreSQL**.
+This guide details the step-by-step instructions for deploying **CargoFlow** into production using **Cloudflare Workers (OpenNext)**, **Cloudflare Zero-Trust Tunnels**, **Neon PostgreSQL**, and **BullMQ/Redis**.
 
 ---
 
-## 🏗️ Production Architecture Overview
+## 🏗️ Architecture Summary
 
+* **Frontend**: Next.js 14 App Router deployed to **Cloudflare Workers** using `@opennextjs/cloudflare`.
+* **API**: NestJS REST & Socket.IO server running in Docker, exposed via **Cloudflare Tunnel (`cloudflared`)** at `api.yourdomain.com`.
+* **Database**: **Neon Serverless PostgreSQL** with PgBouncer connection pooling and mandatory SSL.
+* **Worker**: Dedicated **BullMQ** Node.js background process for heavy 3D packing engine computations.
+* **Cache/Queue**: **Redis 7** (self-hosted in compose or Upstash Serverless).
+
+---
+
+## A. Exact Cloudflare Dashboard Settings
+
+### 1. Cloudflare Workers (Frontend)
+1. Go to **Cloudflare Dashboard** → **Workers & Pages** → **Create application** → **Workers** tab.
+2. Link your Git repository (e.g. `sreehariradhakrishnan2000/3D-Truck`).
+3. Set the following build settings:
+   - **Framework preset**: `Next.js`
+   - **Root directory**: `apps/web`
+   - **Build command**: `npx opennextjs-cloudflare build`
+   - **Deploy command**: `npx wrangler deploy`
+4. In **Settings** → **Compatibility Flags**:
+   - **Compatibility date**: `2024-09-23` (or newer)
+   - **Compatibility flags**: Add `nodejs_compat`
+5. In **Settings** → **Variables and Secrets**:
+   - Add Plaintext Variable: `NODE_ENV` = `production`
+   - Add Plaintext Variable: `NEXT_PUBLIC_API_URL` = `https://api.yourdomain.com/api`
+   - Add Plaintext Variable: `NEXT_PUBLIC_WS_URL` = `https://api.yourdomain.com`
+
+---
+
+## B. Exact Environment Variables to Create
+
+### Public Frontend Variables (Set in Cloudflare Workers Dashboard)
+```ini
+NEXT_PUBLIC_API_URL="https://api.yourdomain.com/api"
+NEXT_PUBLIC_WS_URL="https://api.yourdomain.com"
 ```
-                          ┌──────────────────────────────────────────────┐
-                          │            Cloudflare Global Edge            │
-                          │   (DDoS Protection, SSL/TLS, Caching, WAF)   │
-                          └───────┬──────────────────────────────┬───────┘
-                                  │                              │
-                    HTTPS Requests│                              │WebSocket & API
-                                  ▼                              ▼
-                 ┌─────────────────────────────────┐   ┌────────────────────────────────┐
-                 │        Cloudflare Pages         │   │       Cloudflare Tunnel        │
-                 │   Next.js 14 Web Frontend       │   │         (cloudflared)          │
-                 │  - 3D Three.js Studio           │   └───────────────┬────────────────┘
-                 │  - SSR + Edge Cache             │                   │ Zero-Inbound Tunnel
-                 │  - Security Headers             │                   ▼
-                 └─────────────────────────────────┘   ┌────────────────────────────────┐
-                                                       │       Dockerized Backend       │
-                                                       │   - NestJS API (Port 3001)     │
-                                                       │   - Socket.io Real-time WS     │
-                                                       │   - Packing Optimization Eng   │
-                                                       └───────────────┬────────────────┘
-                                                                       │
-                                                       ┌───────────────┴────────────────┐
-                                                       │  Neon Serverless PostgreSQL    │
-                                                       │   (Connection Pooling + SSL)   │
-                                                       └────────────────────────────────┘
+
+### Private Backend Variables (Set in `.env.production` on API Server)
+```ini
+# Neon PostgreSQL pooled connection with SSL required
+DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-solitary-frost-a50e9766-pooler.us-east-2.aws.neon.tech/cargoflow?sslmode=require"
+
+# Redis cache and BullMQ job queue
+REDIS_URL="redis://redis:6379"
+
+# Cryptographic JWT Secret (Minimum 64 chars)
+JWT_SECRET="GENERATE_A_64_CHAR_RANDOM_SECRET_WITH_OPENSSL_RAND_BASE64_48"
+
+# Runtime options
+PORT=3001
+NODE_ENV="production"
+WEB_URL="https://yourdomain.com"
+CORS_ORIGIN="https://yourdomain.com,https://cargoflow-web.pages.dev"
+COOKIE_DOMAIN=".yourdomain.com"
+COOKIE_SAMESITE="lax"
+WORKER_CONCURRENCY=4
+
+# Cloudflare Zero Trust Tunnel Runner Token
+CLOUDFLARE_TUNNEL_TOKEN="YOUR_CLOUDFLARE_TUNNEL_TOKEN"
 ```
 
 ---
 
-## 📋 Prerequisites
+## C. Exact GitHub Integration Settings
 
-1. **Cloudflare Account**: [dash.cloudflare.com](https://dash.cloudflare.com/) with your domain (e.g., `cargoflow.com`) added.
-2. **Neon Database**: Serverless PostgreSQL database connection string with `sslmode=require`.
-3. **GitHub Repository**: For automated CI/CD deployment via GitHub Actions.
-4. **Docker & Docker Compose**: For hosting the backend services.
+To avoid duplicate or conflicting deployments:
+* **Primary Deployment Mechanism**: Cloudflare Workers native Git Integration connects directly to the repository `main` branch.
+* **GitHub Actions**: Configured solely for CI validation (`.github/workflows/ci.yml`), running lint, typecheck, unit tests, and build checks on pull requests and pushes.
+* Under GitHub Repository **Settings** → **Branches**, set `main` as default with protected branch status requiring status checks to pass before merging.
 
 ---
 
-## 1️⃣ Database Setup (Neon PostgreSQL)
+## D. Exact Commands to Run Locally
 
-1. Create a project in [Neon Console](https://console.neon.tech).
-2. Copy the **Pooled Connection String** (format):
+```bash
+# 1. Install dependencies across all workspaces
+npm install
+
+# 2. Generate Prisma Client for PostgreSQL
+npm run prisma:generate
+
+# 3. Run all package and service unit tests (31/31 tests)
+npm test --workspaces --if-present
+
+# 4. Run typecheck across the monorepo
+npm run typecheck
+
+# 5. Build core packages
+npm run build:api
+npm run build:worker
+npm run build:web:worker
+```
+
+---
+
+## E. Exact Deployment Steps
+
+### Step 1: Deploy Database Migrations to Neon
+From your machine (with your Neon `DATABASE_URL` in `.env`):
+```bash
+npm run db:migrate:prod
+```
+
+### Step 2: Deploy Frontend to Cloudflare Workers
+#### Option 1: Automatic
+Push changes to GitHub:
+```bash
+git push origin main
+```
+Cloudflare Workers Builds will automatically build and deploy the worker.
+
+#### Option 2: Wrangler CLI
+```bash
+npm run build:web:worker
+npm run deploy:worker
+```
+
+### Step 3: Deploy Backend Services via Cloudflare Tunnel
+On your production Linux server / VPS:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/sreehariradhakrishnan2000/3D-Truck.git cargoflow
+   cd cargoflow
    ```
-   postgresql://cargoflow_owner:YOUR_PASSWORD@ep-solitary-frost-a50e9766-pooler.us-east-2.aws.neon.tech/cargoflow?sslmode=require
+2. Create `.env.production` from `.env.production.example`:
+   ```bash
+   cp .env.production.example .env.production
+   nano .env.production
    ```
-3. Run the migrations from your development machine or CI:
+3. Start the container stack (API + BullMQ Worker + Redis + Cloudflared):
+   ```bash
+   docker compose -f docker-compose.cloudflare.yml --env-file .env.production up -d --build
+   ```
+
+---
+
+## F. Exact DNS & Domain Steps
+
+In the **Cloudflare Dashboard** under your domain DNS management:
+1. When you configure the Cloudflare Tunnel public hostname, Cloudflare automatically creates a **CNAME** record:
+   - Name: `api`
+   - Target: `<TUNNEL_ID>.cfargotunnel.com`
+   - Proxy status: **Proxied (Orange Cloud)**
+2. In Workers & Pages, assign your Custom Domain to the worker:
+   - Worker → **Settings** → **Triggers** → **Custom Domains** → Add `yourdomain.com` (and/or `app.yourdomain.com`).
+   - Cloudflare automatically routes apex traffic to your Next.js worker.
+
+---
+
+## G. Exact Cloudflare Tunnel Steps
+
+1. In [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/):
+   - Go to **Networks** → **Tunnels** → **Add a tunnel**.
+   - Select **Cloudflared**.
+   - Name: `cargoflow-prod-tunnel`.
+2. Save the **Tunnel Token** provided in the install command.
+3. Configure the **Public Hostname**:
+   - Subdomain: `api`
+   - Domain: `yourdomain.com`
+   - Path: (leave empty)
+   - Type: `HTTP`
+   - URL: `api:3001`
+4. Under **Additional application settings**:
+   - **HTTP Settings**:
+     - Enable **HTTP/2 to origin**
+     - Enable **No TLS Verify** (if using self-signed internal TLS)
+     - Enable **WebSockets** (Crucial for Socket.IO real-time collaboration!)
+5. Paste the token into `CLOUDFLARE_TUNNEL_TOKEN` in your `.env.production`.
+
+---
+
+## H. Exact Neon Setup Steps
+
+1. Sign up / Log in to [Neon Console](https://console.neon.tech/).
+2. Create a project: `cargoflow-prod`.
+3. In **Dashboard**, copy the **Pooled connection string**.
+   Ensure `?sslmode=require` is present at the end:
+   ```
+   postgresql://neondb_owner:PASS@ep-pooler.us-east-2.aws.neon.tech/cargoflow?sslmode=require
+   ```
+4. Run migrations using the pooled connection:
    ```bash
    npx prisma migrate deploy --schema=prisma/schema.prisma
    ```
 
 ---
 
-## 2️⃣ Deploy Web Frontend to Cloudflare Pages
+## I. Exact Redis Setup Steps
 
-### Option A: Automatic Deployment via GitHub Actions (Recommended)
+### Option A: Self-Hosted Docker (Default)
+Included automatically in `docker-compose.cloudflare.yml`. Runs persistent `redis:7-alpine` on internal container network `redis:6379`.
 
-The repository includes `.github/workflows/deploy-cloudflare.yml`.
-
-1. Go to your GitHub repository **Settings** → **Secrets and variables** → **Actions**.
-2. Add the following repository secrets:
-   - `CLOUDFLARE_API_TOKEN`: Create at [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) with `Cloudflare Pages: Edit` permissions.
-   - `CLOUDFLARE_ACCOUNT_ID`: Found on your Cloudflare dashboard right-hand sidebar.
-   - `NEXT_PUBLIC_API_URL`: e.g. `https://api.yourdomain.com/api`
-   - `NEXT_PUBLIC_WS_URL`: e.g. `https://api.yourdomain.com`
-3. Push to `main` branch:
-   ```bash
-   git push origin main
-   ```
-   GitHub Actions will automatically build all workspaces and deploy the web application to Cloudflare Pages.
-
-### Option B: Deploy via Cloudflare Pages Dashboard
-
-1. In Cloudflare Dashboard, go to **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-2. Select your repository.
-3. Configure build settings:
-   - **Framework preset**: `Next.js`
-   - **Root directory**: `/`
-   - **Build command**: `npm run build --workspace=@cargoflow/shared-types && npm run build --workspace=@cargoflow/geometry && npm run build --workspace=@cargoflow/validation && npm run build --workspace=@cargoflow/packing-engine && npm run build --workspace=@cargoflow/web`
-   - **Build output directory**: `apps/web/.next`
-4. Add Environment Variables:
-   - `NODE_VERSION`: `20`
-   - `NEXT_PUBLIC_API_URL`: `https://api.yourdomain.com/api`
-   - `NEXT_PUBLIC_WS_URL`: `https://api.yourdomain.com`
-5. Click **Save and Deploy**.
-
-### Option C: Manual CLI Deployment with Wrangler
-
-```bash
-# 1. Install or authenticate Wrangler
-npx wrangler login
-
-# 2. Build the monorepo
-npm run build
-
-# 3. Deploy to Cloudflare Pages
-npm run deploy:cloudflare
-```
+### Option B: Upstash Serverless Redis (Managed)
+1. Create a Redis database at [Upstash Console](https://console.upstash.com/).
+2. Select your closest AWS region to Neon (e.g. `us-east-2`).
+3. Copy the `rediss://` TLS connection URL.
+4. Set `REDIS_URL="rediss://default:PASS@endpoint.upstash.io:6379"` in `.env.production`.
 
 ---
 
-## 3️⃣ Deploy NestJS API & WebSockets with Cloudflare Tunnel
+## J. Post-Deployment Verification Checklist
 
-Cloudflare Tunnel (`cloudflared`) connects your Dockerized NestJS API and WebSockets securely to Cloudflare Edge without exposing any inbound ports on your server.
-
-### Step 1: Create a Cloudflare Tunnel
-
-In the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/):
-1. Navigate to **Networks** → **Tunnels** → **Add a tunnel**.
-2. Name your tunnel: `cargoflow-tunnel`.
-3. Copy the **Tunnel Token** generated by Cloudflare.
-
-### Step 2: Configure Public Hostnames in Tunnel Settings
-
-In your tunnel configuration, add a public hostname:
-- **Subdomain**: `api` (e.g., `api.yourdomain.com`)
-- **Service Type**: `HTTP`
-- **URL**: `api:3001`
-- Under **Additional application settings** → **HTTP Settings**:
-  - Enable **HTTP/2 to origin**
-  - Enable **WebSockets**
-
-### Step 3: Run with Docker Compose
-
-1. Copy `.env.production.example` to `.env.production`:
-   ```bash
-   cp .env.production.example .env.production
-   ```
-2. Fill in the values:
-   ```ini
-   DATABASE_URL="postgresql://user:pass@ep-pooler.neon.tech/cargoflow?sslmode=require"
-   JWT_SECRET="generate-a-secure-random-64-char-string"
-   WEB_URL="https://cargoflow.com"
-   CLOUDFLARE_TUNNEL_TOKEN="YOUR_COPIED_TUNNEL_TOKEN"
-   ```
-3. Start the production stack:
-   ```bash
-   docker compose -f docker-compose.cloudflare.yml up -d
-   ```
-4. Verify all containers are healthy:
-   ```bash
-   docker compose -f docker-compose.cloudflare.yml ps
-   ```
-
----
-
-## 4️⃣ Production Verification Checklist
-
-| Check | Expected Result | Command / URL |
+| Test | Expected Output | Verification Method |
 |---|---|---|
-| **API Health** | HTTP 200 `{"status":"ok"}` | `curl -f https://api.yourdomain.com/api/health` |
-| **API Readiness** | HTTP 200 `{"status":"ready"}` | `curl -f https://api.yourdomain.com/api/ready` |
-| **Web App** | HTTP 200 & Rendered UI | `curl -I https://yourdomain.com` |
-| **Security Headers** | `X-Frame-Options: SAMEORIGIN` | Inspected via browser DevTools or `curl -I` |
-| **WebSockets** | Successful handshake (`/ws`) | Load detail page live sync |
-| **3D Canvas** | WebGL canvas rendered | Open any load at `/loads/[id]` |
+| **API Health Check** | `{"status":"ok","uptimeSec":...}` | `curl -f https://api.yourdomain.com/api/health` |
+| **Database Readiness** | `{"status":"ready","database":"connected"}` | `curl -f https://api.yourdomain.com/api/ready` |
+| **Cloudflare Worker Frontend** | HTTP 200 with HTML shell | `curl -I https://yourdomain.com` |
+| **Security Headers** | `X-Frame-Options: SAMEORIGIN`, `nosniff` | DevTools Network Tab / curl |
+| **Real-time WebSockets** | 101 Switching Protocols over `/ws` | Check load detail page collaboration indicator |
+| **3D Three.js Studio** | WebGL Canvas renders truck & packages | Open `/loads/[id]` in browser & mobile Safari |
+| **3D Auto-Pack Engine** | Placements computed, progress emitted | Click **Auto-Pack** button on load planner |
+| **BullMQ Worker Logs** | `[CargoFlow Worker] Successfully connected` | `docker compose -f docker-compose.cloudflare.yml logs worker` |
 
 ---
 
-## 5️⃣ Rolling Updates & Maintenance
+## K. Architecture Notes & Best Practices
 
-To pull latest code and trigger a zero-downtime rolling update:
-
-```bash
-git pull origin main
-docker compose -f docker-compose.cloudflare.yml build
-docker compose -f docker-compose.cloudflare.yml up -d --no-deps api web
-```
+1. **Heavy Computation Isolation**: 3D packing computations execute on the dedicated BullMQ worker container, never against Cloudflare Edge CPU limits.
+2. **Dynamic 3D Component Loading**: Three.js and OrbitControls are dynamically imported on the client (`ssr: false`), preventing server hydration bugs and cutting first load JS to ~137 kB.
+3. **Database Migration Safety**: Migrations run explicitly via `npm run db:migrate:prod`, preventing race conditions during rolling container restarts.

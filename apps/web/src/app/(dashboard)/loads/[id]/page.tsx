@@ -12,10 +12,25 @@ import {
   Box,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import dynamic from 'next/dynamic';
 import { usePlannerStore } from '@/store/plannerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useLoadRealtime } from '@/hooks/useLoadRealtime';
-import { TrailerScene } from '@/components/planner/TrailerScene';
+
+const TrailerScene = dynamic(
+  () => import('@/components/planner/TrailerScene').then((mod) => mod.TrailerScene),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full min-h-[500px] flex flex-col items-center justify-center bg-slate-950 text-slate-400 gap-3 border border-slate-800 rounded-lg">
+        <div className="w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+        <span className="text-xs font-mono uppercase tracking-widest text-slate-500">
+          Initializing 3D WebGL Studio...
+        </span>
+      </div>
+    ),
+  }
+);
 import { PlannerLeftSidebar } from '@/components/planner/PlannerLeftSidebar';
 import { PlannerMetricCards } from '@/components/planner/PlannerMetricCards';
 import { PackageListPanel } from '@/components/planner/PackageListPanel';

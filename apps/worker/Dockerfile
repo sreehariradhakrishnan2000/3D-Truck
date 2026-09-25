@@ -9,9 +9,11 @@ COPY package.json package-lock.json ./
 COPY tsconfig.json ./
 
 COPY packages ./packages
+COPY prisma ./prisma
 COPY apps/worker ./apps/worker
 
 RUN npm ci
+RUN npx prisma generate
 
 RUN npm run build --workspace=@cargoflow/shared-types
 RUN npm run build --workspace=@cargoflow/geometry

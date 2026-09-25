@@ -40,6 +40,9 @@ jobs:
       - name: Build NestJS API
         run: npm run build --workspace=@cargoflow/api
 
+      - name: Build BullMQ Background Worker
+        run: npm run build --workspace=@cargoflow/worker
+
       - name: Build Next.js Web Frontend
         run: npm run build --workspace=@cargoflow/web
         env:
