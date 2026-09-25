@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Box, Plus, Check, ArrowRight, X } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
-import { formatDimension, formatWeight } from '@/lib/utils';
+import { useSettingsStore } from '@/store/settingsStore';
+import { formatDimension, formatWeight } from '@/lib/units';
 import type { LoadPackageDto, PackageDefinitionDto } from '@cargoflow/shared-types';
 
 interface CargoTrayProps {
@@ -19,6 +20,7 @@ export function CargoTray({
   onAddPackage,
   onPlacePackage,
 }: CargoTrayProps) {
+  const { unitSystem } = useSettingsStore();
   const {
     placements,
     selectedLoadPackageId,
@@ -80,10 +82,10 @@ export function CargoTray({
                   <div>
                     <h4 className="font-semibold text-slate-800">{lp.packageDefinition?.name}</h4>
                     <p className="text-[10px] text-slate-500">
-                      {formatDimension(lp.packageDefinition?.length || 0)} × {formatDimension(lp.packageDefinition?.width || 0)} × {formatDimension(lp.packageDefinition?.height || 0)}
+                      {formatDimension(lp.packageDefinition?.length || 0, unitSystem)} × {formatDimension(lp.packageDefinition?.width || 0, unitSystem)} × {formatDimension(lp.packageDefinition?.height || 0, unitSystem)}
                     </p>
                     <span className="text-[10px] font-semibold text-blue-600">
-                      {formatWeight(lp.packageDefinition?.weightKg || 0)}
+                      {formatWeight(lp.packageDefinition?.weightKg || 0, unitSystem)}
                     </span>
                   </div>
 
@@ -124,7 +126,7 @@ export function CargoTray({
                     </div>
                     <div>
                       <p className="font-medium text-[11px]">{lp.packageDefinition?.name}</p>
-                      <span className="text-[9px] text-slate-400">{formatWeight(lp.packageDefinition?.weightKg || 0)}</span>
+                      <span className="text-[9px] text-slate-400">{formatWeight(lp.packageDefinition?.weightKg || 0, unitSystem)}</span>
                     </div>
                   </div>
                   <span className="text-[9px] font-mono text-slate-400">Positioned</span>

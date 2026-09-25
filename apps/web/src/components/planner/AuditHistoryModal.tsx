@@ -179,3 +179,4 @@ export function AuditHistoryModal({ loadId, isOpen, onClose }: AuditHistoryModal
     </div>
   );
 }
+

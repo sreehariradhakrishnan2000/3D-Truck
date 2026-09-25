@@ -135,3 +135,4 @@ export function BarcodeModal({ load, isOpen, onClose }: BarcodeModalProps) {
     </div>
   );
 }
+

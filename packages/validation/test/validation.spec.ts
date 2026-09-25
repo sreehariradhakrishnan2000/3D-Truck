@@ -197,3 +197,4 @@ describe('Load Validator (validateLoad)', () => {
     expect(result.issues.some((i) => i.code === ErrorCode.TRAILER_WEIGHT_EXCEEDED)).toBe(true);
   });
 });
+

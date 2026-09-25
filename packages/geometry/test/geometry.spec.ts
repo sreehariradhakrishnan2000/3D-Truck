@@ -22,6 +22,7 @@ import {
   isItemSupported,
   calculateCenterOfGravity,
   calculateVolumeUtilization,
+  checkDeliveryAccessibility,
 } from '../src';
 import type { Dimensions3D, RotationIndex, Vector3 } from '@cargoflow/shared-types';
 
@@ -141,3 +142,44 @@ describe('Weight Distribution and Center of Gravity', () => {
     expect(cog.centerOfGravity.x).toBe(2000);
   });
 });
+
+describe('Delivery Accessibility & Multi-Stop LIFO', () => {
+  it('detects when later stop cargo blocks earlier stop cargo from exit', () => {
+    const items = [
+      {
+        id: 'stop-1-pkg',
+        bbox: makeBoundingBox({ x: 0, y: 0, z: 0 }, { length: 1000, width: 1000, height: 1000 }),
+        stopSequence: 1, // Deep in trailer, needs to exit first
+      },
+      {
+        id: 'stop-2-pkg',
+        bbox: makeBoundingBox({ x: 1500, y: 0, z: 0 }, { length: 1000, width: 1000, height: 1000 }),
+        stopSequence: 2, // Placed closer to the door, blocking stop 1
+      },
+    ];
+
+    const issues = checkDeliveryAccessibility(items);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].blockedPackageId).toBe('stop-1-pkg');
+    expect(issues[0].blockingPackageId).toBe('stop-2-pkg');
+  });
+
+  it('allows unobstructed cargo where earlier stop cargo is closest to door', () => {
+    const items = [
+      {
+        id: 'stop-2-pkg',
+        bbox: makeBoundingBox({ x: 0, y: 0, z: 0 }, { length: 1000, width: 1000, height: 1000 }),
+        stopSequence: 2, // Deep near front wall
+      },
+      {
+        id: 'stop-1-pkg',
+        bbox: makeBoundingBox({ x: 1500, y: 0, z: 0 }, { length: 1000, width: 1000, height: 1000 }),
+        stopSequence: 1, // Near rear door, easily accessible
+      },
+    ];
+
+    const issues = checkDeliveryAccessibility(items);
+    expect(issues).toHaveLength(0);
+  });
+});
+

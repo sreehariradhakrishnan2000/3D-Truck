@@ -107,3 +107,4 @@ describe('GreedyPackingEngine', () => {
     expect(result.unplaced[0].loadPackageId).toBe('oversized-1');
   });
 });
+

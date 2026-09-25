@@ -4,13 +4,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, ArrowLeft, Truck, CheckSquare, ShieldCheck, QrCode } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatDimension, formatWeight, formatVolume } from '@/lib/utils';
+import { useSettingsStore } from '@/store/settingsStore';
+import { formatDimension, formatWeight, formatVolume } from '@/lib/units';
 import type { LoadDto, VehicleDto, LoadPackageDto } from '@cargoflow/shared-types';
 
 export default function LoadManifestPrintPage() {
   const params = useParams();
   const router = useRouter();
   const loadId = params.id as string;
+  const { unitSystem } = useSettingsStore();
 
   const { data: load, isLoading } = useQuery({
     queryKey: ['load', loadId],
@@ -85,8 +87,8 @@ export default function LoadManifestPrintPage() {
           <div>
             <h3 className="font-bold text-slate-900 mb-1">Assigned Vehicle</h3>
             <p><span className="text-slate-500">Trailer:</span> {v?.name || 'Standard'}</p>
-            <p><span className="text-slate-500">Dimensions:</span> {formatDimension(v?.interiorLength || 0)} × {formatDimension(v?.interiorWidth || 0)} × {formatDimension(v?.interiorHeight || 0)}</p>
-            <p><span className="text-slate-500">Max Payload:</span> {formatWeight(v?.maxPayloadKg || 0)}</p>
+            <p><span className="text-slate-500">Dimensions:</span> {formatDimension(v?.interiorLength || 0, unitSystem)} × {formatDimension(v?.interiorWidth || 0, unitSystem)} × {formatDimension(v?.interiorHeight || 0, unitSystem)}</p>
+            <p><span className="text-slate-500">Max Payload:</span> {formatWeight(v?.maxPayloadKg || 0, unitSystem)}</p>
           </div>
         </div>
 
@@ -98,7 +100,7 @@ export default function LoadManifestPrintPage() {
           </div>
           <div className="rounded-xl border border-slate-200 p-2.5">
             <span className="text-[10px] text-slate-400">Gross Cargo Weight</span>
-            <p className="font-bold text-slate-800 text-sm">{formatWeight(load.totalWeightKg)}</p>
+            <p className="font-bold text-slate-800 text-sm">{formatWeight(load.totalWeightKg, unitSystem)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-2.5">
             <span className="text-[10px] text-slate-400">Volume Utilized</span>
@@ -118,7 +120,7 @@ export default function LoadManifestPrintPage() {
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
                 <th className="py-2 px-2 w-12 text-center">Step</th>
                 <th className="py-2 px-2">Item Description</th>
-                <th className="py-2 px-2">Dimensions (mm)</th>
+                <th className="py-2 px-2">Dimensions</th>
                 <th className="py-2 px-2">Weight</th>
                 <th className="py-2 px-2">Placement Coordinates</th>
                 <th className="py-2 px-2">Handling Flags</th>
@@ -142,8 +144,10 @@ export default function LoadManifestPrintPage() {
                     <tr key={item.id} className="hover:bg-slate-50/50">
                       <td className="py-2 px-2 text-center font-bold text-blue-600">{item.sequenceOrder}</td>
                       <td className="py-2 px-2 font-medium text-slate-900">{def?.name || 'Cargo Item'}</td>
-                      <td className="py-2 px-2 text-slate-600">{def?.length} × {def?.width} × {def?.height}</td>
-                      <td className="py-2 px-2 font-semibold text-slate-800">{formatWeight(def?.weightKg || 0)}</td>
+                      <td className="py-2 px-2 text-slate-600">
+                        {formatDimension(def?.length || 0, unitSystem)} × {formatDimension(def?.width || 0, unitSystem)} × {formatDimension(def?.height || 0, unitSystem)}
+                      </td>
+                      <td className="py-2 px-2 font-semibold text-slate-800">{formatWeight(def?.weightKg || 0, unitSystem)}</td>
                       <td className="py-2 px-2 font-mono text-[11px] text-slate-600">
                         {pl ? `X: ${Math.round(pl.x)} | Y: ${Math.round(pl.y)} | Z: ${Math.round(pl.z)}` : 'Floor'}
                       </td>

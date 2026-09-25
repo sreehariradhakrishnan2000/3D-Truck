@@ -16,6 +16,9 @@ import {
   getStackWeightAbove,
   calculateCenterOfGravity,
   calculateVolumeUtilization,
+  checkDeliveryAccessibility,
+  makeBoundingBox,
+  applyRotation,
 } from '@cargoflow/geometry';
 import type { Dimensions3D } from '@cargoflow/shared-types';
 
@@ -203,6 +206,33 @@ export function validateLoad(
     frontRearRatio: cogResult.frontRearRatio,
     leftRightRatio: cogResult.leftRightRatio,
   };
+
+  // Delivery accessibility validation
+  const accessibilityItems = packages
+    .filter((pkg) => typeof pkg.stopSequence === 'number' && pkg.stopSequence > 0)
+    .map((pkg) => {
+      const placed = placedItems.find((pi) => pi.id === pkg.id);
+      return {
+        id: pkg.id,
+        bbox: placed
+          ? placed.bbox
+          : makeBoundingBox(pkg.position, applyRotation(pkg.dims, pkg.rotationIndex)),
+        stopSequence: pkg.stopSequence!,
+      };
+    });
+
+  const accessibilityIssues = checkDeliveryAccessibility(accessibilityItems);
+  deliveryAccessibilityWarnings = accessibilityIssues.length;
+
+  for (const acc of accessibilityIssues) {
+    issues.push({
+      code: ErrorCode.VALIDATION_ERROR,
+      severity: 'warning',
+      message: acc.message,
+      packageId: acc.blockedPackageId,
+      conflictingPackageId: acc.blockingPackageId,
+    });
+  }
 
   const isValid =
     dimensionsValid &&

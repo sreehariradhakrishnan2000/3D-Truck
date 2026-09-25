@@ -1,8 +1,9 @@
 'use client';
 
-import { AlertCircle, CheckCircle2, Users, Scale, Gauge, ShieldAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Users, Scale, Gauge, ShieldAlert, Route } from 'lucide-react';
 import { usePlannerStore } from '@/store/plannerStore';
-import { formatWeight, formatVolume } from '@/lib/utils';
+import { useSettingsStore } from '@/store/settingsStore';
+import { formatWeight, formatVolume } from '@/lib/units';
 import type { LoadDto, VehicleDto } from '@cargoflow/shared-types';
 
 interface ValidationPanelProps {
@@ -11,6 +12,7 @@ interface ValidationPanelProps {
 }
 
 export function ValidationPanel({ load, vehicle }: ValidationPanelProps) {
+  const { unitSystem } = useSettingsStore();
   const {
     validationResult,
     activeCollaborators,
@@ -95,7 +97,7 @@ export function ValidationPanel({ load, vehicle }: ValidationPanelProps) {
             />
           </div>
           <span className="mt-1 block text-[10px] text-slate-400 text-right">
-            Trailer: {((vehicle.interiorLength * vehicle.interiorWidth * vehicle.interiorHeight) / 1e9).toFixed(1)} m³
+            Trailer: {formatVolume(vehicle.interiorLength * vehicle.interiorWidth * vehicle.interiorHeight, unitSystem)}
           </span>
         </div>
 
@@ -116,8 +118,8 @@ export function ValidationPanel({ load, vehicle }: ValidationPanelProps) {
             />
           </div>
           <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-            <span>{formatWeight(totalWeight)} loaded</span>
-            <span>Max: {formatWeight(vehicle.maxPayloadKg)}</span>
+            <span>{formatWeight(totalWeight, unitSystem)} loaded</span>
+            <span>Max: {formatWeight(vehicle.maxPayloadKg, unitSystem)}</span>
           </div>
         </div>
 
@@ -160,6 +162,19 @@ export function ValidationPanel({ load, vehicle }: ValidationPanelProps) {
             </div>
           </div>
         </div>
+
+        {/* Delivery Accessibility Warning */}
+        {validationResult && validationResult.deliveryAccessibilityWarnings > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3">
+            <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+              <Route className="h-4 w-4 text-amber-600" />
+              Delivery Sequence Alerts ({validationResult.deliveryAccessibilityWarnings})
+            </span>
+            <p className="mt-1 text-[11px] text-amber-700">
+              Cargo for earlier stops is blocked from exiting the rear door by cargo intended for later stops.
+            </p>
+          </div>
+        )}
 
         {/* Validation Issues Alert Box */}
         {validationResult && validationResult.issues.length > 0 && (

@@ -5,3 +5,4 @@ export * from './rotations';
 export * from './support';
 export * from './vector3';
 export * from './volume';
+export * from './accessibility';
