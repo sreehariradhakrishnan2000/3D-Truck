@@ -1,0 +1,35 @@
+{
+  "name": "cargoflow",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:studio": "prisma studio --schema=prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "allowScripts": {
+    "@nestjs/core@10.4.22": true,
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "argon2@0.43.1": true,
+    "esbuild@0.21.5": true,
+    "prisma@5.22.0": true
+  }
+}

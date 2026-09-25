@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ORGANIZATION / TENANCY
+// ============================================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members            OrganizationMember[]
+  vehicles           Vehicle[]
+  packageDefinitions PackageDefinition[]
+  loads              Load[]
+  auditLogs          AuditLog[]
+
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  role           UserRole     @default(PLANNER)
+  joinedAt       DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ============================================================
+// USER / AUTH
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships       OrganizationMember[]
+  refreshTokens     RefreshToken[]
+  createdLoads      Load[]              @relation("LoadCreatedBy")
+  assignedLoads     Load[]              @relation("LoadAssignedDriver")
+  createdPlacements Placement[]         @relation("PlacementCreatedBy")
+  updatedPlacements Placement[]         @relation("PlacementUpdatedBy")
+  auditLogs         AuditLog[]
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============================================================
+// VEHICLE / TRAILER
+// ============================================================
+
+model Vehicle {
+  id                 String      @id @default(uuid())
+  organizationId     String
+  name               String
+  type               VehicleType
+  registrationNumber String?
+  // Interior dimensions in millimeters
+  interiorLength     Int
+  interiorWidth      Int
+  interiorHeight     Int
+  // Weight in kilograms
+  maxPayloadKg       Float
+  // Door dimensions in millimeters
+  doorWidth          Int
+  doorHeight         Int
+  description        String?
+  isActive           Boolean     @default(true)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loads        Load[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+}
+
+// ============================================================
+// PACKAGE DEFINITION
+// ============================================================
+
+model PackageDefinition {
+  id             String   @id @default(uuid())
+  organizationId String
+  packageNumber  String
+  sku            String?
+  name           String
+  description    String?
+  // Dimensions in mm
+  length         Int
+  width          Int
+  height         Int
+  // Weight in kg
+  weightKg       Float
+  isFragile      Boolean  @default(false)
+  isHazardous    Boolean  @default(false)
+  isStackable    Boolean  @default(true)
+  requiresUprightOrientation Boolean @default(false)
+  requiresFloorSupport       Boolean @default(false)
+  // JSON array of allowed RotationIndex values [0..5]
+  allowedRotations           Int[]
+  maxStackWeightKg           Float?
+  barcode                    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loadPackages  LoadPackage[]
+
+  @@unique([organizationId, packageNumber])
+  @@index([organizationId])
+}
+
+// ============================================================
+// LOAD
+// ============================================================
+
+model Load {
+  id               String     @id @default(uuid())
+  loadNumber       String
+  organizationId   String
+  vehicleId        String
+  status           LoadStatus @default(DRAFT)
+  /// Monotonically incrementing version for optimistic concurrency
+  version          Int        @default(1)
+  createdById      String
+  assignedDriverId String?
+  origin           String?
+  destination      String?
+  plannedLoadingDate DateTime?
+  notes            String?
+  // Cached totals — always recalculated on the backend
+  totalWeightKg    Float      @default(0)
+  totalVolumeMm3   Float      @default(0)
+  weightUtilizationPct Float  @default(0)
+  volumeUtilizationPct Float  @default(0)
+  packageCount     Int        @default(0)
+  validationPassed Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle        Vehicle       @relation(fields: [vehicleId], references: [id])
+  createdBy      User          @relation("LoadCreatedBy", fields: [createdById], references: [id])
+  assignedDriver User?         @relation("LoadAssignedDriver", fields: [assignedDriverId], references: [id])
+  loadPackages   LoadPackage[]
+  placements     Placement[]
+  loadingSequence LoadingSequenceItem[]
+  auditLogs      AuditLog[]
+
+  @@unique([organizationId, loadNumber])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([vehicleId])
+}
+
+// ============================================================
+// LOAD PACKAGE (package instance in a load)
+// ============================================================
+
+model LoadPackage {
+  id                  String        @id @default(uuid())
+  loadId              String
+  packageDefinitionId String
+  quantity            Int           @default(1)
+  stopSequence        Int?
+  priority            Int           @default(5)
+  notes               String?
+  status              PackageStatus @default(PENDING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  load              Load              @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  packageDefinition PackageDefinition @relation(fields: [packageDefinitionId], references: [id])
+  placements        Placement[]
+  sequenceItems     LoadingSequenceItem[]
+
+  @@index([loadId])
+  @@index([packageDefinitionId])
+}
+
+// ============================================================
+// PLACEMENT
+// ============================================================
+
+model Placement {
+  id            String   @id @default(uuid())
+  loadId        String
+  loadPackageId String
+  /// Coordinates in mm from trailer front-left-bottom interior corner
+  x             Float
+  y             Float
+  z             Float
+  rotationIndex Int      /// 0-5
+  createdById   String
+  updatedById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  load        Load        @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  loadPackage LoadPackage @relation(fields: [loadPackageId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation("PlacementCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User        @relation("PlacementUpdatedBy", fields: [updatedById], references: [id])
+
+  /// Each load package can have at most one placement
+  @@unique([loadPackageId])
+  @@index([loadId])
+  @@index([loadPackageId])
+}
+
+// ============================================================
+// LOADING SEQUENCE
+// ============================================================
+
+model LoadingSequenceItem {
+  id            String @id @default(uuid())
+  loadId        String
+  loadPackageId String
+  sequenceOrder Int
+  notes         String?
+
+  load        Load        @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  loadPackage LoadPackage @relation(fields: [loadPackageId], references: [id], onDelete: Cascade)
+
+  @@unique([loadId, sequenceOrder])
+  @@index([loadId])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id             String      @id @default(uuid())
+  organizationId String
+  loadId         String?
+  userId         String
+  action         AuditAction
+  entityType     String
+  entityId       String
+  previousState  Json?
+  newState       Json?
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  load         Load?        @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([loadId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// ENUMS (mirrored from shared-types for DB)
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  PLANNER
+  DISPATCHER
+  LOADER
+  DRIVER
+  VIEWER
+}
+
+enum LoadStatus {
+  DRAFT
+  PLANNING
+  READY
+  LOADING
+  LOADED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PackageStatus {
+  PENDING
+  PLACED
+  UNPLACEABLE
+  LOADED
+}
+
+enum VehicleType {
+  SEMI_TRAILER
+  BOX_TRUCK
+  CONTAINER_20FT
+  CONTAINER_40FT
+  REFRIGERATED
+  FLATBED
+  CUSTOM
+}
+
+enum AuditAction {
+  LOAD_CREATED
+  LOAD_UPDATED
+  LOAD_STATUS_CHANGED
+  PACKAGE_ADDED
+  PACKAGE_MOVED
+  PACKAGE_ROTATED
+  PACKAGE_REMOVED
+  PACKAGE_PLACED
+  AUTO_PACK_STARTED
+  AUTO_PACK_COMPLETED
+  TRAILER_CHANGED
+  VALIDATION_FAILED
+  VALIDATION_PASSED
+  USER_JOINED_LOAD
+  USER_LEFT_LOAD
+  CONFLICT_DETECTED
+  LOAD_FINALIZED
+}

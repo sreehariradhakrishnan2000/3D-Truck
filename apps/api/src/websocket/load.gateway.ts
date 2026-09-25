@@ -1,0 +1,104 @@
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  ConnectedSocket,
+  MessageBody,
+  WsException,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { Logger } from '@nestjs/common';
+import { WS_EVENTS } from '@cargoflow/shared-types';
+import type { JwtPayload } from '@cargoflow/shared-types';
+
+interface AuthenticatedSocket extends Socket {
+  user?: JwtPayload;
+}
+
+@WebSocketGateway({
+  cors: {
+    origin: process.env.WEB_URL || 'http://localhost:3000',
+    credentials: true,
+  },
+  namespace: '/ws',
+})
+export class LoadGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer() server!: Server;
+  private readonly logger = new Logger(LoadGateway.name);
+  private connectedUsers = new Map<string, { user: JwtPayload; loadId?: string }>();
+
+  constructor(private jwtService: JwtService) {}
+
+  async handleConnection(client: AuthenticatedSocket) {
+    try {
+      const token =
+        (client.handshake.auth?.token as string) ||
+        client.handshake.headers?.authorization?.split(' ')[1];
+      if (!token) { client.disconnect(); return; }
+
+      const payload = this.jwtService.verify<JwtPayload>(token);
+      client.user = payload;
+      this.connectedUsers.set(client.id, { user: payload });
+      this.logger.log(`WS connected: ${client.id} (${payload.email})`);
+    } catch {
+      this.logger.warn(`Unauthorized WS connection: ${client.id}`);
+      client.disconnect();
+    }
+  }
+
+  handleDisconnect(client: AuthenticatedSocket) {
+    const userData = this.connectedUsers.get(client.id);
+    if (userData?.loadId) {
+      client.to(`load:${userData.loadId}`).emit(WS_EVENTS.USER_LEFT, {
+        userId: userData.user.sub,
+      });
+    }
+    this.connectedUsers.delete(client.id);
+  }
+
+  @SubscribeMessage(WS_EVENTS.JOIN_LOAD)
+  handleJoinLoad(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { loadId: string },
+  ) {
+    if (!client.user) throw new WsException('Unauthorized');
+
+    const prev = this.connectedUsers.get(client.id);
+    if (prev?.loadId) client.leave(`load:${prev.loadId}`);
+
+    client.join(`load:${data.loadId}`);
+    const entry = this.connectedUsers.get(client.id);
+    if (entry) entry.loadId = data.loadId;
+
+    client.to(`load:${data.loadId}`).emit(WS_EVENTS.USER_JOINED, {
+      userId: client.user.sub,
+      email: client.user.email,
+    });
+
+    return { event: 'joinedLoad', data: { loadId: data.loadId } };
+  }
+
+  @SubscribeMessage(WS_EVENTS.LEAVE_LOAD)
+  handleLeaveLoad(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { loadId: string },
+  ) {
+    client.leave(`load:${data.loadId}`);
+    const entry = this.connectedUsers.get(client.id);
+    if (entry) entry.loadId = undefined;
+    client.to(`load:${data.loadId}`).emit(WS_EVENTS.USER_LEFT, { userId: client.user?.sub });
+  }
+
+  /** Broadcast a placement event to all users in a load room (except the sender) */
+  broadcastToLoad(loadId: string, event: string, payload: unknown, excludeSocketId?: string) {
+    if (excludeSocketId) {
+      this.server.to(`load:${loadId}`).except(excludeSocketId).emit(event, payload);
+    } else {
+      this.server.to(`load:${loadId}`).emit(event, payload);
+    }
+  }
+}
+
