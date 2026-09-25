@@ -4,6 +4,10 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   output: 'standalone',
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.cargoflow.com/api' : 'http://localhost:3001/api'),
+    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || (process.env.NODE_ENV === 'production' ? 'https://api.cargoflow.com' : 'http://localhost:3001'),
+  },
 
   // Unoptimized images allow static & edge delivery across Cloudflare's Global CDN
   images: {
